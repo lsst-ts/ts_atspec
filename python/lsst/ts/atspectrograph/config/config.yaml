@@ -1,0 +1,22 @@
+settingVersions:
+  recommendedSettingsVersion: 'default'
+  recommendedSettingsLabels: ['default', 'simulation']
+
+setting:
+  default:
+    host: '10.0.2.15'  # IP of the weather station
+    port: 50000
+    buffer_size: 2048
+    filters:
+      - "u"
+      - "g"
+      - "r"
+      - "i"
+      - "z"
+    gratings:
+      - "red"
+      - "blue"
+    linear_stage:
+      min_pos: 0
+      max_pos: 1000
+      speed: 10
