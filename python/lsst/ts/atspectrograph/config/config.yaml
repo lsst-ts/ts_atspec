@@ -4,9 +4,8 @@ settingVersions:
 
 setting:
   default:
-    host: '10.0.2.15'  # IP of the weather station
-    port: 50000
-    buffer_size: 2048
+    host: '140.252.32.156'  # IP of the weather station
+    port: 9999
     filters:
       - "u"
       - "g"
