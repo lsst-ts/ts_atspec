@@ -1,5 +1,3 @@
-import enum
-
 import SALPY_ATSpectrograph
 
 from lsst.ts.salobj import base_csc

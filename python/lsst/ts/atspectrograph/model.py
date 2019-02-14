@@ -6,6 +6,11 @@ import asyncio
 __all__ = ['Model']
 
 _LOCAL_HOST = "127.0.0.1"
+_DEFAULT_PORT = 9999
+
+_limit_decode = {"-": -1,
+                 "0": 0,
+                 "+": +1}
 
 
 class FilterWheelStatus:
@@ -21,8 +26,7 @@ class FilterWheelStatus:
              "I": "not initialized",
              "T": "move timed out"}
 
-    @staticmethod
-    def parse_status(status):
+    def parse_status(self, status):
         """Parse status string.
 
         Parameters
@@ -37,7 +41,7 @@ class FilterWheelStatus:
 
         """
         values = status.split(" ")
-        return FilterWheelStatus.status[values[0]], values[1], FilterWheelStatus.error[values[2]]
+        return self.status[values[1]], values[2], self.error[values[3]]
 
 
 class GratingWheelStatus(FilterWheelStatus):
@@ -47,6 +51,33 @@ class GratingWheelStatus(FilterWheelStatus):
 
 class GratingStageStatus(FilterWheelStatus):
     """Class to store possible Grating Stage status and error codes."""
+    pass
+
+
+class GratingWheelStepPosition(FilterWheelStatus):
+    """Class to store possible Grating Wheel Step Position status and error codes."""
+
+    def parse_status(self, status):
+        """Parse status string.
+
+        Parameters
+        ----------
+        status : str
+            A string in the format "x # y" where x is status code, # is position and y is error code
+
+        Returns
+        -------
+        status : tuple
+            (status, position)
+
+        """
+        values = status.split(" ")
+        return self.status[values[1]], int(values[2])
+
+
+class FilterWheelStepPosition(GratingWheelStepPosition):
+    """Class to store possible Filter Wheel Step Position status and error codes."""
+    pass
 
 
 class Model:
@@ -65,13 +96,17 @@ class Model:
             self.config = yaml.load(stream)
 
         self.host = _LOCAL_HOST
-        self.port = 9999
-        self.buffer_size = 20  # Vendor specifies that communicatino is aways 20 bytes long
+        self.port = _DEFAULT_PORT
+        self.connection_timeout = 10.
+        self.read_timeout = 10.
+
         self.connect_task = None
         self.reader = None
         self.writer = None
 
-        self.socket = None
+        self.cmd_lock = asyncio.Lock()
+        self.controller_ready = False
+
 
     @property
     def recommended_settings(self):
@@ -122,9 +157,12 @@ class Model:
             self.log.debug('Received empty setting label. Using default: %s', setting)
 
         if setting not in self.config['settingVersions']['recommendedSettingsLabels']:
-            raise IOError('Setting %s not a valid label. Must be one of %s.',
-                          setting,
-                          self.get_settings())
+            raise RuntimeError('Setting %s not a valid label. Must be one of %s.',
+                               setting,
+                               self.settings_labels)
+
+        self.host = self.config['setting'][setting].get('host', _LOCAL_HOST)
+        self.port = self.config['setting'][setting].get('port', _DEFAULT_PORT)
 
     async def stop_all_motion(self):
         """Send command to stop all motions.
@@ -164,27 +202,163 @@ class Model:
     async def query_fw_status(self):
         """Query status of the filter wheel.
 
-        Returns
-        -------
-        ret_val : str
-            Response from controller.
+        status : str
+            I – initializing/homing,
+            M – moving,
+            S – stationary/not moving
+        position : int
+            current filter wheel position (0-3)
+        error : str
+            N - none,
+            B - busy,
+            I - not initialized,
+            T - move timed out
+
+        Raises
+        ------
+        RuntimeError
 
         """
         ret_val = await self.run_command("?FWS\r\n")
 
-        return FilterWheelStatus.parse_status(self.check_return(ret_val))
+        return FilterWheelStatus().parse_status(self.check_return(ret_val))
 
     async def query_gw_status(self):
         """Query status of the Grating Wheel.
 
-        Returns
-        -------
+        status : str
+            I – initializing/homing,
+            M – moving,
+            S – stationary/not moving
+        position : int
+            current grating position (0-3)
+        error : str
+            N - none,
+            B - busy,
+            I - not initialized,
+            T - move timed out
+
+        Raises
+        ------
+        RuntimeError
 
         """
         ret_val = await self.run_command("?GRS\r\n")
 
-        return GratingWheelStatus.parse_status(self.check_return(ret_val))
+        return GratingWheelStatus().parse_status(self.check_return(ret_val))
 
+    async def query_gs_status(self):
+        """Query status of the Grating Linear Stage.
+
+        status : str
+            I – initializing/homing,
+            M – moving,
+            S – stationary/not moving
+        position : int
+            current motor step position
+        error : str
+            N - none,
+            B - busy,
+            I - not initialized,
+            T - move timed out
+
+        Raises
+        ------
+        RuntimeError
+
+        """
+        ret_val = await self.run_command("?GRS\r\n")
+
+        return GratingStageStatus().parse_status(self.check_return(ret_val))
+
+    async def query_gs_limit_switches(self):
+        """Query grating stage limit switches.
+
+        Returned status:
+            0 not at a limit,
+            + at the positive limit,
+            - at the negative limit/home
+
+
+        Returns
+        -------
+        ret_val : int
+            -1, 0 or +1
+
+        Raises
+        ------
+        RuntimeError
+        """
+        ret_val = await self.run_command("?LSL\r\n")
+
+        return _limit_decode[self.check_return(ret_val).split(" ")[1]]
+
+    async def query_gw_step_position(self):
+        """Query grating wheel step position.
+
+        Returns
+        -------
+        status : str
+            I – initializing/homing,
+            M – moving,
+            S – stationary/not moving
+        position : int
+            current motor step position
+        """
+        ret_val = await self.run_command(f"?GRP\r\n")
+
+        return GratingWheelStepPosition().parse_status(self.check_return(ret_val))
+
+    async def query_fw_step_position(self):
+        """Query filter wheel step position.
+
+        Returns
+        -------
+        status : str
+            I – initializing/homing,
+            M – moving,
+            S – stationary/not moving
+        position : int
+            current motor step position
+        """
+        ret_val = await self.run_command(f"?FWP\r\n")
+
+        return FilterWheelStepPosition().parse_status(self.check_return(ret_val))
+
+    async def init_fw(self):
+        """Initialize/home filter wheel"""
+        ret_val = await self.run_command("!FWI\r\n")
+        return self.check_return(ret_val)
+
+    async def init_gw(self):
+        """initialize/home grating wheel"""
+        ret_val = await self.run_command("!GRI\r\n")
+        return self.check_return(ret_val)
+
+    async def init_gs(self):
+        """initialize grating stage to negative limit/home."""
+        ret_val = await self.run_command("!LSI\r\n")
+        return self.check_return(ret_val)
+
+    async def move_fw(self, pos):
+        """move filter wheel to position # (0-3)"""
+        if pos < 0 or pos > 3:
+            raise RuntimeError(f"Out of range (0-3), got {pos}.")
+        ret_val = await self.run_command(f"!FWM{pos}\r\n")
+        return self.check_return(ret_val)
+
+    async def move_gw(self, pos):
+        """move grating wheel to position # (0-3)"""
+        if pos < 0 or pos > 3:
+            raise RuntimeError(f"Out of range (0-3), got {pos}.")
+        ret_val = await self.run_command(f"!GRM{pos}\r\n")
+        return self.check_return(ret_val)
+
+    async def move_gs(self, pos):
+        """move grating stage to # (mm from home position)"""
+        # TODO: limit check?
+        ret_val = await self.run_command(f"!LSM{pos}\r\n")
+        return self.check_return(ret_val)
 
     async def connect(self):
         """Connect to the spectrograph controller's TCP/IP port.
@@ -196,7 +370,15 @@ class Model:
         self.connect_task = asyncio.open_connection(host=host, port=self.port)
         self.reader, self.writer = await asyncio.wait_for(self.connect_task,
                                                           timeout=self.connection_timeout)
-        self.log.debug("connected")
+
+        # Read welcome message
+        await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
+                               timeout=self.read_timeout)
+
+        read_bytes = await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
+                                            timeout=self.read_timeout)
+
+        self.log.debug(f"connected: {read_bytes.decode().rstrip()}")
 
     async def disconnect(self):
         """Disconnect from the spectrograph controller's TCP/IP port.
@@ -228,6 +410,17 @@ class Model:
             else:
                 raise RuntimeError("Not connected and not trying to connect")
         async with self.cmd_lock:
+
+            # Make sure controller is ready...
+            try:
+                read_bytes = await asyncio.wait_for(self.reader.read(1),
+                                                    timeout=self.read_timeout)
+                if read_bytes != b">":
+                    raise RuntimeError("Controller not ready...")
+            except Exception as e:
+                await self.disconnect()
+                raise e
+
             self.writer.write(f"{cmd}\n".encode())
             await self.writer.drain()
 
@@ -254,9 +447,4 @@ class Model:
         -------
 
         """
-        if ret_val[0] == "?":
-            raise RuntimeError(f"{ret_val}")
-        elif ret_val[0] == "!":
-            return ret_val[1:]
-        else:
-            raise RuntimeError(f"Unrecognized value {ret_val}}")
+        return ret_val.rstrip()
