@@ -75,9 +75,23 @@ class CSC(salobj.BaseCsc):
         self.want_connection = False
 
         # initialize the elements
-        await self.home_fw()  # self.model.init_fw(self.want_connection)
-        await self.home_gs()  # self.model.init_gs(self.want_connection)
-        await self.home_gw()  # self.model.init_gw(self.want_connection)
+        await self.home_element(query="query_fw_status",
+                                home="init_fw",
+                                eport="reportedFilterPosition",
+                                inposition="filterInPosition",
+                                report_state="fwState")  # Home filter wheel
+
+        await self.home_element(query="query_gw_status",
+                                home="init_gw",
+                                report="reportedDisperserPosition",
+                                inposition="disperserInPosition",
+                                report_state="gwState")  # Home grating wheel
+
+        await self.home_element(query="query_ls_status",
+                                home="init_ls",
+                                report="reportedLinearStagePosition",
+                                inposition="linearStageInPosition",
+                                report_state="lsState")  # Home linear stage
 
         self._do_change_state(id_data, "enable", [salobj.State.DISABLED], salobj.State.ENABLED)
 
@@ -323,9 +337,17 @@ class CSC(salobj.BaseCsc):
 
         p_state = await getattr(self.model, query)(self.want_connection)
 
+        moving_state = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Moving
+        not_in_position = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_NotInPosition
+
         # Send command to the controller. Limit is checked by model.
         if p_state[0] == SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary:
-            await getattr(self.model, move)(position)
+            getattr(self, f"evt_{report_state}").set_put(state=moving_state)
+            try:
+                await getattr(self.model, move)(position)
+            except Exception as e:
+                getattr(self, f"evt_{report_state}").set_put(state=not_in_position)
+                raise e
             getattr(self, f"evt_{report}").set_put(position=p_state[1])
             getattr(self, f"evt_{inposition}").set_put(inPosition=False)
         else:
@@ -349,3 +371,79 @@ class CSC(salobj.BaseCsc):
             elif time.time()-start_time > self.model.move_timeout:
                 raise TimeoutError(f"Change position timed out trying to move to "
                                    f"position {position}.")
+
+    async def home_element(self, query, home, report, inposition, report_state):
+        """Utility method to home subcomponents.
+
+
+        Parameters
+        ----------
+        query : str
+            Name of the method that queries the status of the element. Must be one of the
+            three options:
+                - query_gw_status
+                - query_fw_status
+                - query_ls_status
+
+        home : str
+            Name of the method that initializes element. Must be one of the
+            three options:
+                - init_gw
+                - init_fw
+                - init_ls
+
+        report : str
+            Name of the method responsible for reporting the position. Must be one of the
+            three options:
+                - reportedDisperserPosition
+                - reportedFilterPosition
+                - reportedLinearStagePosition
+
+        inposition : str
+            Name of the method responsible for reporting that element is in position. Must be
+            one of the three options:
+                - disperserInPosition
+                - filterInPosition
+                - linearStageInPosition
+
+        report_state : str
+            Name of the method responsible for reporting the state of the element. Must be
+            one of the three options:
+                - gwState
+                - fwState
+                - lsState
+
+        """
+
+        current_state = getattr(self, f"evt_{report_state}").data.state
+        stationary_state = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary
+        homing_state = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Homing
+        not_in_position = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_NotInPosition
+
+        if current_state != stationary_state:
+            raise RuntimeError("Element moving. Cannot home.")
+        else:
+            getattr(self, f"evt_{report_state}").set_put(state=homing_state)
+
+        try:
+            await getattr(self.model, home)()
+            p_state = await getattr(self.model, query)(self.want_connection)
+        except Exception as e:
+            getattr(self, f"evt_{report_state}").set_put(state=not_in_position)
+            raise e
+
+        # Need to wait for command to complete
+        start_time = time.time()
+        while True:
+            state = await getattr(self.model, query)(self.want_connection)
+
+            if p_state[0] != state[0]:
+                getattr(self, f"evt_{report_state}").set_put(state=state[0])
+                p_state = state
+
+            if state[0] == SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary:
+                getattr(self, f"evt_{report}").set_put(position=state[1])
+                getattr(self, f"evt_{inposition}").set_put(inPosition=True)
+                break
+            elif time.time()-start_time > self.model.move_timeout:
+                raise TimeoutError(f"Homing element failed...")

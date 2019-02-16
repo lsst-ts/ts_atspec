@@ -111,7 +111,6 @@ class Model:
         self.cmd_lock = asyncio.Lock()
         self.controller_ready = False
 
-
     @property
     def recommended_settings(self):
         """Recommended settings property.
