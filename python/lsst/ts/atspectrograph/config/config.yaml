@@ -4,17 +4,15 @@ settingVersions:
 
 setting:
   default:
-    host: '140.252.32.156'  # IP of the weather station
+    host: '140.252.32.156'  # IP of the controller
     port: 9999
-    filters:
-      - "u"
-      - "g"
-      - "r"
-      - "i"
-      - "z"
-    gratings:
-      - "red"
-      - "blue"
+    linear_stage:
+      min_pos: 0
+      max_pos: 1000
+      speed: 10
+  simulation:
+    host: '127.0.0.1'
+    port: 9999
     linear_stage:
       min_pos: 0
       max_pos: 1000

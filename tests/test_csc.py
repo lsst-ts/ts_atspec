@@ -7,6 +7,7 @@ import logging
 from lsst.ts import salobj
 
 from lsst.ts.atspectrograph import atspec_csc as csc
+from lsst.ts.atspectrograph.mock_controller import MockSpectrographController
 
 import SALPY_ATSpectrograph
 
@@ -23,6 +24,7 @@ class Harness:
         salobj.test_utils.set_random_lsst_dds_domain()
         self.csc = csc.CSC()
         self.remote = salobj.Remote(SALPY_ATSpectrograph)
+        self.mock_ctrl = MockSpectrographController(port=self.csc.model.port)
 
 
 class TestATSpecCSC(unittest.TestCase):
@@ -48,6 +50,7 @@ class TestATSpecCSC(unittest.TestCase):
                         "changeDisperser", "changeFilter", "homeLinearStage", "moveLinearStage",
                         "stopAllAxes")
             harness = Harness()
+            await asyncio.wait_for(harness.mock_ctrl.start(), timeout=2)
 
             # Check initial state
             current_state = await harness.remote.evt_summaryState.next(flush=False, timeout=1.)
@@ -94,8 +97,11 @@ class TestATSpecCSC(unittest.TestCase):
             # send enable; new state is ENABLED
             cmd_attr = getattr(harness.remote, f"cmd_enable")
             state_coro = harness.remote.evt_summaryState.next(flush=True, timeout=1.)
-            await cmd_attr.start(cmd_attr.DataType(), timeout=1.)
-            state = await state_coro
+            try:
+                # enable may take some time to complete
+                await cmd_attr.start(cmd_attr.DataType(), timeout=120.)
+            finally:
+                state = await state_coro
             self.assertEqual(harness.csc.summary_state, salobj.State.ENABLED)
             self.assertEqual(state.summaryState, salobj.State.ENABLED)
 
@@ -114,6 +120,8 @@ class TestATSpecCSC(unittest.TestCase):
             # this CMD may take some time to complete
             await cmd_attr.start(cmd_attr.DataType(), timeout=30.)
             self.assertEqual(harness.csc.summary_state, salobj.State.DISABLED)
+
+            await harness.mock_ctrl.stop()
 
         stream_handler = logging.StreamHandler(sys.stdout)
         logger.addHandler(stream_handler)

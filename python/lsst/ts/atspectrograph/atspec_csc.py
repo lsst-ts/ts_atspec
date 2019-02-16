@@ -51,16 +51,16 @@ class CSC(salobj.BaseCsc):
         self.model.setup(id_data.data.settingsToApply)
         self.want_connection = True
 
-    def end_enable(self, id_data):
-        """
-
-        Parameters
-        ----------
-        id_data : `CommandIdData`
-            Command ID and data
-
-        """
-        self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
+    # def end_enable(self, id_data):
+    #     """
+    #
+    #     Parameters
+    #     ----------
+    #     id_data : `CommandIdData`
+    #         Command ID and data
+    #
+    #     """
+    #     self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
 
     async def do_enable(self, id_data):
         """Transition from `State.DISABLED` to `State.ENABLED`.
@@ -70,14 +70,24 @@ class CSC(salobj.BaseCsc):
         id_data : `CommandIdData`
             Command ID and data
         """
+        self._do_change_state(id_data, "enable", [salobj.State.DISABLED], salobj.State.ENABLED)
+
         # start connection with the controller
-        await self.model.connect()
-        self.want_connection = False
+        if not self.model.connected:
+            await self.model.connect()
+            self.want_connection = False
+
+        for query, report_state in [("query_fw_status", "fwState"),
+                                    ("query_gw_status", "gwState"),
+                                    ("query_gs_status", "lsState")]:
+            state = await getattr(self.model, query)(self.want_connection)
+            self.log.debug(f"{query}: {state}")
+            getattr(self, f"evt_{report_state}").set_put(state=state[0])
 
         # initialize the elements
         await self.home_element(query="query_fw_status",
                                 home="init_fw",
-                                eport="reportedFilterPosition",
+                                report="reportedFilterPosition",
                                 inposition="filterInPosition",
                                 report_state="fwState")  # Home filter wheel
 
@@ -87,18 +97,18 @@ class CSC(salobj.BaseCsc):
                                 inposition="disperserInPosition",
                                 report_state="gwState")  # Home grating wheel
 
-        await self.home_element(query="query_ls_status",
-                                home="init_ls",
+        await self.home_element(query="query_gs_status",
+                                home="init_gs",
                                 report="reportedLinearStagePosition",
                                 inposition="linearStageInPosition",
                                 report_state="lsState")  # Home linear stage
 
-        self._do_change_state(id_data, "enable", [salobj.State.DISABLED], salobj.State.ENABLED)
+        self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
 
     async def health_monitor_loop(self):
         """A coroutine to monitor the state of the hardware."""
 
-        while True:
+        while self.summary_state == salobj.State.ENABLED:
             try:
                 ls_state = await self.model.query_gs_status(self.want_connection)
                 fw_state = await self.model.query_fw_status(self.want_connection)
@@ -421,7 +431,7 @@ class CSC(salobj.BaseCsc):
         not_in_position = SALPY_ATSpectrograph.ATSpectrograph_shared_Status_NotInPosition
 
         if current_state != stationary_state:
-            raise RuntimeError("Element moving. Cannot home.")
+            raise RuntimeError(f"Element {inposition.split('In')[0]}. Cannot home.")
         else:
             getattr(self, f"evt_{report_state}").set_put(state=homing_state)
 

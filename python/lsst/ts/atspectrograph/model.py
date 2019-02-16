@@ -43,6 +43,14 @@ class FilterWheelStatus:
 
         """
         values = status.split(" ")
+        try:
+            values[2] = int(values[2])
+        except ValueError as e:
+            try:
+                values[2] = float(values[2])
+            except ValueError as e:
+                values[2] = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Inbetween
+
         return self.status[values[1]], values[2], self.error[values[3]]
 
 
@@ -294,7 +302,7 @@ class Model:
         RuntimeError
 
         """
-        ret_val = await self.run_command("?GRS\r\n", want_connection=want_connection)
+        ret_val = await self.run_command("?LSS\r\n", want_connection=want_connection)
 
         return GratingStageStatus().parse_status(self.check_return(ret_val))
 
@@ -499,6 +507,8 @@ class Model:
         want_connection : bool
             Flag to specify if a connection is to be requested in case it is not connected.
         """
+
+        self.log.debug(f"run_command: {cmd}")
 
         if not self.connected:
             if want_connection and self.connect_task is not None and not self.connect_task.done():
