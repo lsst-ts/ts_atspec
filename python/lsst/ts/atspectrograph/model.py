@@ -174,6 +174,8 @@ class Model:
 
         self.host = self.config['setting'][setting].get('host', _LOCAL_HOST)
         self.port = self.config['setting'][setting].get('port', _DEFAULT_PORT)
+        # by default, not in simulation mode
+        self.simulation_mode = self.config['setting'][setting].get('simulation', 0)
 
     async def stop_all_motion(self, want_connection=False):
         """Send command to stop all motions.
