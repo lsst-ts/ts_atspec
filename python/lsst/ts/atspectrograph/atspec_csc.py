@@ -183,7 +183,7 @@ class CSC(salobj.BaseCsc):
 
         await self.move_element(query="query_gw_status",
                                 move="move_gw",
-                                position=id_data.distanceFromHome,
+                                position=id_data.data.disperser,
                                 report="reportedDisperserPosition",
                                 inposition="disperserInPosition",
                                 report_state="gwState")
@@ -201,7 +201,7 @@ class CSC(salobj.BaseCsc):
 
         await self.move_element(query="query_fw_status",
                                 move="move_fw",
-                                position=id_data.distanceFromHome,
+                                position=id_data.data.filter,
                                 report="reportedFilterPosition",
                                 inposition="filterInPosition",
                                 report_state="fwState")
@@ -236,7 +236,7 @@ class CSC(salobj.BaseCsc):
 
         await self.move_element(query="query_ls_status",
                                 move="move_ls",
-                                position=id_data.distanceFromHome,
+                                position=id_data.data.distanceFromHome,
                                 report="reportedLinearStagePosition",
                                 inposition="linearStageInPosition",
                                 report_state="lsState")
