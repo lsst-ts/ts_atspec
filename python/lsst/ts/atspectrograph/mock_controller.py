@@ -33,13 +33,19 @@ class MockSpectrographController:
         self._fw_pos = 0
         self._fw_err = 0
 
+        self.fw_limit = (0, 3)
+
         self._gw_state = 2
         self._gw_pos = 0
         self._gw_err = 0
 
+        self.gw_limit = (0, 3)
+
         self._ls_state = 2
         self._ls_pos = 0.
         self._ls_err = 0
+
+        self.ls_limit = (0, 1000)
 
         self._cmds = {"!XXX": None,
                       "!LDC": None,
@@ -52,9 +58,9 @@ class MockSpectrographController:
                       "!FWI": self.fwi,
                       "!GRI": self.gwi,
                       "!LSI": self.lsi,
-                      "!FWM": None,
-                      "!GRM": None,
-                      "!LSM": None,
+                      "!FWM": self.fwm,
+                      "!GRM": self.grm,
+                      "!LSM": self.lsm,
                       }
 
     async def start(self):
@@ -158,3 +164,52 @@ class MockSpectrographController:
         self._ls_state = 2
 
         return " ".encode()
+
+    async def fwm(self, val):
+        """Move filter wheel."""
+        try:
+            new_pos = int(val)
+            if self.fw_limit[0] <= new_pos <= self.fw_limit[1]:
+                self._fw_state = 'M'
+                self._fw_pos = 'X'
+                await asyncio.sleep(self.wait_time)
+                self._fw_state = 'S'
+                self._fw_pos = new_pos
+                return ""
+            else:
+                return "?Unknown"
+        except Exception as e:
+            return "?Unknown"
+
+    async def grm(self, val):
+        """Move grating wheel."""
+        try:
+            new_pos = int(val)
+            if self.gw_limit[0] <= new_pos <= self.gw_limit[1]:
+                self._gw_state = 'M'
+                self._gw_pos = 'X'
+                await asyncio.sleep(self.wait_time)
+                self._gw_state = 'S'
+                self._gw_pos = new_pos
+                return ""
+            else:
+                return "?Unknown"
+        except Exception as e:
+            return "?Unknown"
+
+    async def lsm(self, val):
+        """Move linear stage."""
+
+        try:
+            new_pos = float(val)
+            if self.ls_limit[0] <= new_pos <= self.ls_limit[1]:
+                self._ls_state = 'M'
+                self._ls_pos = 'X'
+                await asyncio.sleep(self.wait_time)
+                self._ls_state = 'S'
+                self._ls_pos = new_pos
+                return ""
+            else:
+                return "?Unknown"
+        except Exception as e:
+            return "?Unknown"
