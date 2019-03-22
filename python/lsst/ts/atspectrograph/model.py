@@ -2,10 +2,11 @@
 import os
 import yaml
 import asyncio
+import enum
 
 import SALPY_ATSpectrograph
 
-__all__ = ['Model']
+__all__ = ['Model', 'FilterWheelPosition', 'GratingWheelPosition']
 
 _LOCAL_HOST = "127.0.0.1"
 _DEFAULT_PORT = 9999
@@ -15,8 +16,16 @@ _limit_decode = {"-": -1,
                  "+": +1}
 
 
+class FilterWheelPosition(enum.IntEnum):
+    """Store possible request filter wheel positions."""
+    FILTER_0 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter0
+    FILTER_1 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter1
+    FILTER_2 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter2
+    FILTER_3 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter3
+
+
 class FilterWheelStatus:
-    """Class to store possible filter wheel status and error codes."""
+    """Store possible filter wheel status and error codes."""
 
     status = {"I": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Homing,
               "M": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Moving,
@@ -34,7 +43,8 @@ class FilterWheelStatus:
         Parameters
         ----------
         status : str
-            A string in the format "x # y" where x is status code, # is position and y is error code
+            A string in the format "x # y" where x is status code, # is
+            position and y is error code
 
         Returns
         -------
@@ -45,27 +55,35 @@ class FilterWheelStatus:
         values = status.split(" ")
         try:
             values[2] = int(values[2])
-        except ValueError as e:
+        except ValueError:
             try:
                 values[2] = float(values[2])
-            except ValueError as e:
+            except ValueError:
                 values[2] = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Inbetween
 
         return self.status[values[1]], values[2], self.error[values[3]]
 
 
+class GratingWheelPosition(enum.IntEnum):
+    """Store possible requested grating wheel position."""
+    GRATING_0 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser0
+    GRATING_1 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser1
+    GRATING_2 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser2
+    GRATING_3 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser3
+
+
 class GratingWheelStatus(FilterWheelStatus):
-    """Class to store possible Grating wheel status and error codes."""
+    """Store possible Grating wheel status and error codes."""
     pass
 
 
 class GratingStageStatus(FilterWheelStatus):
-    """Class to store possible Grating Stage status and error codes."""
+    """Store possible Grating Stage status and error codes."""
     pass
 
 
 class GratingWheelStepPosition(FilterWheelStatus):
-    """Class to store possible Grating Wheel Step Position status and error codes."""
+    """Store possible Grating Wheel Step Position status and error codes."""
 
     def parse_status(self, status):
         """Parse status string.
@@ -73,7 +91,8 @@ class GratingWheelStepPosition(FilterWheelStatus):
         Parameters
         ----------
         status : str
-            A string in the format "x # y" where x is status code, # is position and y is error code
+            A string in the format "x # y" where x is status code, # is
+            position and y is error code
 
         Returns
         -------
@@ -86,7 +105,7 @@ class GratingWheelStepPosition(FilterWheelStatus):
 
 
 class FilterWheelStepPosition(GratingWheelStepPosition):
-    """Class to store possible Filter Wheel Step Position status and error codes."""
+    """Store possible Filter Wheel Step Position status and error codes."""
     pass
 
 
@@ -100,10 +119,10 @@ class Model:
 
         self.log = log
 
-        self.config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config/config.yaml')
+        self.config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                        'config/config.yaml')
 
-        with open(self.config_path, 'r') as stream:
-            self.config = yaml.load(stream)
+        self.config = None
 
         self.host = _LOCAL_HOST
         self.port = _DEFAULT_PORT
@@ -119,6 +138,11 @@ class Model:
         self.cmd_lock = asyncio.Lock()
         self.controller_ready = False
 
+        self.filters = dict()
+        self.gratings = dict()
+
+        self.tolerance = 1e-2  # movement tolerance
+
     @property
     def recommended_settings(self):
         """Recommended settings property.
@@ -128,6 +152,9 @@ class Model:
         recommended_settings : str
             Recommended settings read from Model configuration file.
         """
+        with open(self.config_path, 'r') as stream:
+            self.config = yaml.load(stream)
+
         return self.config['settingVersions']['recommendedSettingsVersion']
 
     @property
@@ -176,6 +203,42 @@ class Model:
         self.port = self.config['setting'][setting].get('port', _DEFAULT_PORT)
         # by default, not in simulation mode
         self.simulation_mode = self.config['setting'][setting].get('simulation', 0)
+
+        self.tolerance = self.config['setting'][setting].get('tolerance', 1e-2)
+
+        if ('filters' in self.config['setting'][setting] and
+                len(self.config['setting'][setting]['filters']) == len(FilterWheelPosition)):
+            self.filters = dict()
+            for i, f in enumerate(FilterWheelPosition):
+                self.filters[self.config['setting'][setting]['filters'][i]] = str(f).lower()
+        elif ('filters' in self.config['setting'][setting] and
+                len(self.config['setting'][setting]['filters']) != len(FilterWheelPosition)):
+            raise RuntimeError(f"Invalid filter name configuration. Expected "
+                               f"{len(FilterWheelPosition)} entries, got "
+                               f"{len(self.config['setting'][setting]['filters'])}")
+        else:
+            self.log.debug("No filter name information. Using defaults.")
+            self.filters = dict()
+            for f in FilterWheelPosition:
+                fname = str(f).split(".")[1]
+                self.filters[fname] = str(f).lower()
+
+        if ('gratings' in self.config['setting'][setting] and
+                len(self.config['setting'][setting]['gratings']) == len(GratingWheelPosition)):
+            self.gratings = dict()
+            for i, g in enumerate(GratingWheelPosition):
+                self.gratings[self.config['setting'][setting]['gratings'][i]] = str(g).lower()
+        elif ('gratings' in self.config['setting'][setting] and
+                len(self.config['setting'][setting]['gratings']) != len(GratingWheelPosition)):
+            raise RuntimeError("Invalid grating name configuration. Expected "
+                               f"{len(GratingWheelPosition)} entries, got "
+                               f"{len(self.config['setting'][setting]['gratings'])}")
+        else:
+            self.log.debug("No grating name information. Using defaults.")
+            self.gratings = dict()
+            for g in GratingWheelPosition:
+                gname = str(g).split(".")[1]
+                self.gratings[gname] = str(g).lower()
 
     async def stop_all_motion(self, want_connection=False):
         """Send command to stop all motions.
@@ -483,6 +546,9 @@ class Model:
 
         read_bytes = await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
                                             timeout=self.read_timeout)
+
+        if "Spectrograph" not in read_bytes.decode().rstrip():
+            raise RuntimeError("No welcome message from controller.")
 
         self.log.debug(f"connected: {read_bytes.decode().rstrip()}")
 

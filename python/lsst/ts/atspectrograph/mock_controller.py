@@ -178,7 +178,7 @@ class MockSpectrographController:
                 return ""
             else:
                 return "?Unknown"
-        except Exception as e:
+        except Exception:
             return "?Unknown"
 
     async def grm(self, val):
@@ -194,7 +194,7 @@ class MockSpectrographController:
                 return ""
             else:
                 return "?Unknown"
-        except Exception as e:
+        except Exception:
             return "?Unknown"
 
     async def lsm(self, val):
@@ -211,5 +211,5 @@ class MockSpectrographController:
                 return ""
             else:
                 return "?Unknown"
-        except Exception as e:
+        except Exception:
             return "?Unknown"

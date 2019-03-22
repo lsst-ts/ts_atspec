@@ -6,10 +6,21 @@ setting:
   default:
     host: '140.252.32.156'  # IP of the controller
     port: 9999
+    tolerance: 1e-2
     linear_stage:
       min_pos: 0
       max_pos: 1000
       speed: 10
+    filters:
+      - empty
+      - empty
+      - disperser
+      - empty
+    gratings:
+      - empty
+      - ronchi170lpmm
+      - ronchi90lpmm
+      - holo_etu1
   simulation:
     host: '127.0.0.1'
     port: 9999
