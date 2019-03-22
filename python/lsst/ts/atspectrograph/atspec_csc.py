@@ -1,12 +1,14 @@
 import asyncio
 import traceback
 import time
+import logging
 
 import SALPY_ATSpectrograph
+import SALPY_ATCamera
 
 from lsst.ts import salobj
 
-from .model import Model
+from .model import Model, FilterWheelPosition, GratingWheelPosition
 from .mock_controller import MockSpectrographController
 
 __all__ = ['CSC']
@@ -22,12 +24,29 @@ class CSC(salobj.BaseCsc):
     Commandable SAL Component (CSC) for the Auxiliary Telescope Spectrograph.
     """
 
-    def __init__(self):
+    def __init__(self, add_streamhandler=True):
         """
         Initialize AT Spectrograph CSC.
         """
 
         super().__init__(SALPY_ATSpectrograph)
+
+        # Add a remote for the ATCamera to monitor if it is exposing or not.
+        # If it is, reject commands that would cause motion.
+        self.atcam_remote = salobj.Remote(SALPY_ATCamera, include=["startIntegration",
+                                                                   "startReadout"])
+
+        self.atcam_remote.evt_startIntegration.callback = self.monitor_start_integration_callback
+        self.atcam_remote.evt_startReadout.callback = self.monitor_start_readout_callback
+
+        # flag to monitor if camera is exposing or not, if True, motion
+        # commands will be rejected.
+        self.is_exposing = False
+
+        # Add a callback function to monitor exposures
+        if add_streamhandler:
+            ch = logging.StreamHandler()
+            self.log.addHandler(ch)
 
         self.model = Model(self.log)
 
@@ -51,17 +70,6 @@ class CSC(salobj.BaseCsc):
         self.model.setup(id_data.data.settingsToApply)
         self.want_connection = True
 
-    # def end_enable(self, id_data):
-    #     """
-    #
-    #     Parameters
-    #     ----------
-    #     id_data : `CommandIdData`
-    #         Command ID and data
-    #
-    #     """
-    #     self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
-
     async def do_enable(self, id_data):
         """Transition from `State.DISABLED` to `State.ENABLED`.
 
@@ -83,25 +91,6 @@ class CSC(salobj.BaseCsc):
             state = await getattr(self.model, query)(self.want_connection)
             self.log.debug(f"{query}: {state}")
             getattr(self, f"evt_{report_state}").set_put(state=state[0])
-
-        # initialize the elements
-        await self.home_element(query="query_fw_status",
-                                home="init_fw",
-                                report="reportedFilterPosition",
-                                inposition="filterInPosition",
-                                report_state="fwState")  # Home filter wheel
-
-        await self.home_element(query="query_gw_status",
-                                home="init_gw",
-                                report="reportedDisperserPosition",
-                                inposition="disperserInPosition",
-                                report_state="gwState")  # Home grating wheel
-
-        await self.home_element(query="query_gs_status",
-                                home="init_gs",
-                                report="reportedLinearStagePosition",
-                                inposition="linearStageInPosition",
-                                report_state="lsState")  # Home linear stage
 
         self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
 
@@ -180,10 +169,19 @@ class CSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("changeDisperser")
+        self.assert_move_allowed("changeDisperser")
+
+        if id_data.data.disperser > 0 and len(id_data.data.name) > 0:
+            raise RuntimeError(f"Either disperser id or filter name must be selected. "
+                               f"Got disperser={id_data.data.disperser} and name={id_data.data.name}")
+        elif id_data.data.disperser > 0:
+            disperser_id = int(GratingWheelPosition(id_data.data.disperser))
+        else:
+            disperser_id = int(self.model.gratings[id_data.data.name])
 
         await self.move_element(query="query_gw_status",
                                 move="move_gw",
-                                position=id_data.data.disperser,
+                                position=disperser_id,
                                 report="reportedDisperserPosition",
                                 inposition="disperserInPosition",
                                 report_state="gwState")
@@ -198,10 +196,19 @@ class CSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("changeFilter")
+        self.assert_move_allowed("changeFilter")
+
+        if id_data.data.filter > 0 and len(id_data.data.name) > 0:
+            raise RuntimeError(f"Either filter id or filter name must be selected. "
+                               f"Got filter={id_data.data.filter} and name={id_data.data.name}")
+        elif id_data.data.filter > 0:
+            filter_id = int(FilterWheelPosition(id_data.data.filter))
+        else:
+            filter_id = int(self.model.filters[id_data.data.name])
 
         await self.move_element(query="query_fw_status",
                                 move="move_fw",
-                                position=id_data.data.filter,
+                                position=filter_id,
                                 report="reportedFilterPosition",
                                 inposition="filterInPosition",
                                 report_state="fwState")
@@ -216,6 +223,7 @@ class CSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("homeLinearStage")
+        self.assert_move_allowed("homeLinearStage")
 
         await self.home_gs()
 
@@ -229,10 +237,7 @@ class CSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("moveLinearStage")
-
-        # FIXME: Linear stage has a problem and should not be operated at the moment
-        if True:
-            return
+        self.assert_move_allowed("moveLinearStage")
 
         await self.move_element(query="query_ls_status",
                                 move="move_ls",
@@ -374,13 +379,15 @@ class CSC(salobj.BaseCsc):
                 p_state = state
 
             if (state[0] == SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary and
-                    state[1] == position):
+                    state[1]-position <= self.model.tolerance):
                 getattr(self, f"evt_{report}").set_put(position=state[1])
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
                 raise TimeoutError(f"Change position timed out trying to move to "
                                    f"position {position}.")
+
+            await asyncio.sleep(0.5)
 
     async def home_element(self, query, home, report, inposition, report_state):
         """Utility method to home subcomponents.
@@ -457,3 +464,16 @@ class CSC(salobj.BaseCsc):
                 break
             elif time.time()-start_time > self.model.move_timeout:
                 raise TimeoutError(f"Homing element failed...")
+
+    def assert_move_allowed(self, action):
+        """Assert that moving the spectrograph elements is allowed."""
+        if self.is_exposing:
+            raise salobj.base.ExpectedError(f"Camera is exposing, {action} is not allowed.")
+
+    def monitor_start_integration_callback(self):
+        """Set `is_exposing` flag to True."""
+        self.is_exposing = True
+
+    def monitor_start_readout_callback(self):
+        """Set `is_exposing` flag to False."""
+        self.is_exposing = False
