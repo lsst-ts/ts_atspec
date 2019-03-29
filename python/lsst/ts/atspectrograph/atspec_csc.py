@@ -176,7 +176,9 @@ class CSC(salobj.BaseCsc):
                                f"Got disperser={id_data.data.disperser} and name={id_data.data.name}")
         elif id_data.data.disperser > 0:
             disperser_id = int(GratingWheelPosition(id_data.data.disperser))
+            disperser_name = str(list(self.model.gratings.keys())[disperser_id])
         else:
+            disperser_name = id_data.data.name
             disperser_id = int(self.model.gratings[id_data.data.name])
 
         await self.move_element(query="query_gw_status",
@@ -184,7 +186,8 @@ class CSC(salobj.BaseCsc):
                                 position=disperser_id,
                                 report="reportedDisperserPosition",
                                 inposition="disperserInPosition",
-                                report_state="gwState")
+                                report_state="gwState",
+                                position_name=disperser_name)
 
     async def do_changeFilter(self, id_data):
         """Change filter.
@@ -203,7 +206,9 @@ class CSC(salobj.BaseCsc):
                                f"Got filter={id_data.data.filter} and name={id_data.data.name}")
         elif id_data.data.filter > 0:
             filter_id = int(FilterWheelPosition(id_data.data.filter))
+            filter_name = str(list(self.model.filters.keys())[filter_id])
         else:
+            filter_name = id_data.data.name
             filter_id = int(self.model.filters[id_data.data.name])
 
         await self.move_element(query="query_fw_status",
@@ -211,7 +216,8 @@ class CSC(salobj.BaseCsc):
                                 position=filter_id,
                                 report="reportedFilterPosition",
                                 inposition="filterInPosition",
-                                report_state="fwState")
+                                report_state="fwState",
+                                position_name=filter_name)
 
     async def do_homeLinearStage(self, id_data):
         """Home linear stage.
@@ -304,15 +310,16 @@ class CSC(salobj.BaseCsc):
         if self.want_connection:
             await self.connect()
 
-    async def move_element(self, query, move, position, report, inposition, report_state):
-        """A utility function to wrap the steps for moving the filter wheel, grating
-        wheel and linear stage.
+    async def move_element(self, query, move, position, report, inposition,
+                           report_state, position_name=None):
+        """A utility function to wrap the steps for moving the filter wheel,
+        grating wheel and linear stage.
 
         Parameters
         ----------
         query : str
-            Name of the method that queries the status of the element. Must be one of the
-            three options:
+            Name of the method that queries the status of the element. Must be
+            one of the three options:
                 - query_gw_status
                 - query_fw_status
                 - query_ls_status
@@ -325,29 +332,32 @@ class CSC(salobj.BaseCsc):
                 - move_ls
 
         position : int or float
-            Position to move the wheel or the linear stage. Limits are checked by
-            the controller and an exception is raised if out of range.
+            Position to move the wheel or the linear stage. Limits are
+            checked by the controller and an exception is raised if out of
+            range.
 
         report : str
-            Name of the method responsible for reporting the position. Must be one of the
-            three options:
+            Name of the method responsible for reporting the position. Must
+            be one of the three options:
                 - reportedDisperserPosition
                 - reportedFilterPosition
                 - reportedLinearStagePosition
 
         inposition : str
-            Name of the method responsible for reporting that element is in position. Must be
-            one of the three options:
+            Name of the method responsible for reporting that element is in
+            position. Must be one of the three options:
                 - disperserInPosition
                 - filterInPosition
                 - linearStageInPosition
 
         report_state : str
-            Name of the method responsible for reporting the state of the element. Must be
-            one of the three options:
+            Name of the method responsible for reporting the state of the
+            element. Must be one of the three options:
                 - gwState
                 - fwState
                 - lsState
+        position_name : str
+            Name of the specified position.
         """
 
         p_state = await getattr(self.model, query)(self.want_connection)
@@ -380,7 +390,11 @@ class CSC(salobj.BaseCsc):
 
             if (state[0] == SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary and
                     state[1]-position <= self.model.tolerance):
-                getattr(self, f"evt_{report}").set_put(position=state[1])
+                if position_name is None:
+                    getattr(self, f"evt_{report}").set_put(position=state[1])
+                else:
+                    getattr(self, f"evt_{report}").set_put(position=state[1],
+                                                           name=position_name)
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
