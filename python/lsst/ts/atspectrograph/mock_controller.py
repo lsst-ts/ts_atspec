@@ -167,15 +167,16 @@ class MockSpectrographController:
 
     async def fwm(self, val):
         """Move filter wheel."""
+        self.log.debug(f"Received {val!r}")
         try:
             new_pos = int(val)
             if self.fw_limit[0] <= new_pos <= self.fw_limit[1]:
-                self._fw_state = 'M'
-                self._fw_pos = 'X'
+                self._fw_state = 1
+                self._fw_pos = 3
                 await asyncio.sleep(self.wait_time)
-                self._fw_state = 'S'
+                self._fw_state = 2
                 self._fw_pos = new_pos
-                return ""
+                return " ".encode()
             else:
                 return "?Unknown"
         except Exception:
@@ -186,12 +187,12 @@ class MockSpectrographController:
         try:
             new_pos = int(val)
             if self.gw_limit[0] <= new_pos <= self.gw_limit[1]:
-                self._gw_state = 'M'
-                self._gw_pos = 'X'
+                self._gw_state = 1
+                self._gw_pos = 3
                 await asyncio.sleep(self.wait_time)
-                self._gw_state = 'S'
+                self._gw_state = 2
                 self._gw_pos = new_pos
-                return ""
+                return " ".encode()
             else:
                 return "?Unknown"
         except Exception:
@@ -203,12 +204,12 @@ class MockSpectrographController:
         try:
             new_pos = float(val)
             if self.ls_limit[0] <= new_pos <= self.ls_limit[1]:
-                self._ls_state = 'M'
-                self._ls_pos = 'X'
+                self._ls_state = 1
+                self._ls_pos = 3
                 await asyncio.sleep(self.wait_time)
-                self._ls_state = 'S'
+                self._ls_state = 2
                 self._ls_pos = new_pos
-                return ""
+                return " ".encode()
             else:
                 return "?Unknown"
         except Exception:

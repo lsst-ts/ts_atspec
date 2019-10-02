@@ -1,12 +1,9 @@
 
-import os
-import yaml
 import asyncio
-import enum
 
-import SALPY_ATSpectrograph
+from lsst.ts.idl.enums import ATSpectrograph
 
-__all__ = ['Model', 'FilterWheelPosition', 'GratingWheelPosition']
+__all__ = ['Model']
 
 _LOCAL_HOST = "127.0.0.1"
 _DEFAULT_PORT = 9999
@@ -16,26 +13,18 @@ _limit_decode = {"-": -1,
                  "+": +1}
 
 
-class FilterWheelPosition(enum.IntEnum):
-    """Store possible request filter wheel positions."""
-    FILTER_0 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter0
-    FILTER_1 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter1
-    FILTER_2 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter2
-    FILTER_3 = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Filter3
-
-
 class FilterWheelStatus:
     """Store possible filter wheel status and error codes."""
 
-    status = {"I": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Homing,
-              "M": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Moving,
-              "S": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_Stationary,
-              "X": SALPY_ATSpectrograph.ATSpectrograph_shared_Status_NotInPosition}
+    status = {"I": ATSpectrograph.Status.HOMING,
+              "M": ATSpectrograph.Status.MOVING,
+              "S": ATSpectrograph.Status.STATIONARY,
+              "X": ATSpectrograph.Status.NOTINPOSITION}
 
-    error = {"N": SALPY_ATSpectrograph.ATSpectrograph_shared_Error_None,
-             "B": SALPY_ATSpectrograph.ATSpectrograph_shared_Error_Busy,
-             "I": SALPY_ATSpectrograph.ATSpectrograph_shared_Error_NotInitialized,
-             "T": SALPY_ATSpectrograph.ATSpectrograph_shared_Error_MoveTimeout}
+    error = {"N": ATSpectrograph.Error.NONE,
+             "B": ATSpectrograph.Error.BUSY,
+             "I": ATSpectrograph.Error.NOTINITIALIZED,
+             "T": ATSpectrograph.Error.MOVETIMEOUT}
 
     def parse_status(self, status):
         """Parse status string.
@@ -59,17 +48,9 @@ class FilterWheelStatus:
             try:
                 values[2] = float(values[2])
             except ValueError:
-                values[2] = SALPY_ATSpectrograph.ATSpectrograph_shared_FilterPosition_Inbetween
+                values[2] = ATSpectrograph.FilterPosition.INBETWEEN
 
         return self.status[values[1]], values[2], self.error[values[3]]
-
-
-class GratingWheelPosition(enum.IntEnum):
-    """Store possible requested grating wheel position."""
-    GRATING_0 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser0
-    GRATING_1 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser1
-    GRATING_2 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser2
-    GRATING_3 = SALPY_ATSpectrograph.ATSpectrograph_shared_DisperserPosition_Disperser3
 
 
 class GratingWheelStatus(FilterWheelStatus):
@@ -115,14 +96,9 @@ class Model:
     """
     def __init__(self, log):
 
-        self.simulation_mode = 1
+        self.simulation_mode = 0
 
         self.log = log
-
-        self.config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                        'config/config.yaml')
-
-        self.config = None
 
         self.host = _LOCAL_HOST
         self.port = _DEFAULT_PORT
@@ -141,104 +117,9 @@ class Model:
         self.filters = dict()
         self.gratings = dict()
 
+        self.min_pos = 0
+        self.max_pos = 10000
         self.tolerance = 1e-2  # movement tolerance
-
-    @property
-    def recommended_settings(self):
-        """Recommended settings property.
-
-        Returns
-        -------
-        recommended_settings : str
-            Recommended settings read from Model configuration file.
-        """
-        with open(self.config_path, 'r') as stream:
-            self.config = yaml.load(stream)
-
-        return self.config['settingVersions']['recommendedSettingsVersion']
-
-    @property
-    def settings_labels(self):
-        """Recommended settings labels.
-
-        Returns
-        -------
-        recommended_settings_labels : str
-            Comma separated string with the valid setting labels read from Model configuration file.
-
-        """
-        valid_settings = ''
-
-        n_set = len(self.config['settingVersions']['recommendedSettingsLabels'])
-        for i, label in enumerate(self.config['settingVersions']['recommendedSettingsLabels']):
-            valid_settings += label
-            if i < n_set-1:
-                valid_settings += ','
-
-        return valid_settings
-
-    def setup(self, setting):
-        """Setup the model with the given setting.
-
-        Parameters
-        ----------
-        setting : str
-            A string with the selected setting label. Must match one on the configuration file.
-
-        Returns
-        -------
-
-        """
-
-        if len(setting) == 0:
-            setting = self.config['settingVersions']['recommendedSettingsVersion']
-            self.log.debug('Received empty setting label. Using default: %s', setting)
-
-        if setting not in self.config['settingVersions']['recommendedSettingsLabels']:
-            raise RuntimeError('Setting %s not a valid label. Must be one of %s.',
-                               setting,
-                               self.settings_labels)
-
-        self.host = self.config['setting'][setting].get('host', _LOCAL_HOST)
-        self.port = self.config['setting'][setting].get('port', _DEFAULT_PORT)
-        # by default, not in simulation mode
-        self.simulation_mode = self.config['setting'][setting].get('simulation', 0)
-
-        self.tolerance = self.config['setting'][setting].get('tolerance', 1e-2)
-
-        if ('filters' in self.config['setting'][setting] and
-                len(self.config['setting'][setting]['filters']) == len(FilterWheelPosition)):
-            self.filters = dict()
-            for i, f in enumerate(FilterWheelPosition):
-                self.filters[self.config['setting'][setting]['filters'][i]] = str(f).lower()
-        elif ('filters' in self.config['setting'][setting] and
-                len(self.config['setting'][setting]['filters']) != len(FilterWheelPosition)):
-            raise RuntimeError(f"Invalid filter name configuration. Expected "
-                               f"{len(FilterWheelPosition)} entries, got "
-                               f"{len(self.config['setting'][setting]['filters'])}")
-        else:
-            self.log.debug("No filter name information. Using defaults.")
-            self.filters = dict()
-            for f in FilterWheelPosition:
-                fname = str(f).split(".")[1]
-                self.filters[fname] = str(f).lower()
-
-        if ('gratings' in self.config['setting'][setting] and
-                len(self.config['setting'][setting]['gratings']) == len(GratingWheelPosition)):
-            self.gratings = dict()
-            for i, g in enumerate(GratingWheelPosition):
-                self.gratings[self.config['setting'][setting]['gratings'][i]] = str(g).lower()
-        elif ('gratings' in self.config['setting'][setting] and
-                len(self.config['setting'][setting]['gratings']) != len(GratingWheelPosition)):
-            raise RuntimeError("Invalid grating name configuration. Expected "
-                               f"{len(GratingWheelPosition)} entries, got "
-                               f"{len(self.config['setting'][setting]['gratings'])}")
-        else:
-            self.log.debug("No grating name information. Using defaults.")
-            self.gratings = dict()
-            for g in GratingWheelPosition:
-                gname = str(g).split(".")[1]
-                self.gratings[gname] = str(g).lower()
 
     async def stop_all_motion(self, want_connection=False):
         """Send command to stop all motions.
@@ -526,6 +407,9 @@ class Model:
 
         """
         # TODO: limit check?
+        if not (self.min_pos <= pos <= self.max_pos):
+            raise RuntimeError(f"Requested position {pos} outside limits "
+                               f"({self.min_pos} / {self.max_pos}).")
         ret_val = await self.run_command(f"!LSM{pos}\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
 
