@@ -556,11 +556,11 @@ class CSC(salobj.ConfigurableCsc):
         if self.is_exposing:
             raise salobj.base.ExpectedError(f"Camera is exposing, {action} is not allowed.")
 
-    def monitor_start_integration_callback(self):
+    def monitor_start_integration_callback(self, id_data):
         """Set `is_exposing` flag to True."""
         self.is_exposing = True
 
-    def monitor_start_readout_callback(self):
+    def monitor_start_readout_callback(self, id_data):
         """Set `is_exposing` flag to False."""
         self.is_exposing = False
 
