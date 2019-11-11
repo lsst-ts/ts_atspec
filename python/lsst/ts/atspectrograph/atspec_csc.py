@@ -64,29 +64,29 @@ class CSC(salobj.ConfigurableCsc):
 
         self.timeout = 5.
 
-    async def end_start(self, id_data):
+    async def end_start(self, data):
         """end do_start; called after state changes.
 
         This method call setup on the model, passing the selected setting.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_start`
+            Command data
         """
         self.want_connection = True
 
-        await super().end_start(id_data)
+        await super().end_start(data)
 
-    async def end_enable(self, id_data):
+    async def end_enable(self, data):
         """End do_enable; called after state changes.
 
         This method will connect to the controller.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_enable`
+            Command data
         """
 
         # start connection with the controller
@@ -119,9 +119,9 @@ class CSC(salobj.ConfigurableCsc):
 
         self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
 
-        await super().end_enable(id_data)
+        await super().end_enable(data)
 
-    async def end_disable(self, id_data):
+    async def end_disable(self, data):
 
         try:
             await asyncio.wait_for(self._health_loop, timeout=self.timeout)
@@ -145,7 +145,7 @@ class CSC(salobj.ConfigurableCsc):
             self.fault()
             raise e
 
-        await super().end_disable(id_data)
+        await super().end_disable(data)
 
     async def health_monitor_loop(self):
         """A coroutine to monitor the state of the hardware."""
@@ -212,32 +212,32 @@ class CSC(salobj.ConfigurableCsc):
                                            errorReport="Health loop died for some unspecified reason.",
                                            traceback=traceback.format_exc())
 
-    async def do_changeDisperser(self, id_data):
+    async def do_changeDisperser(self, data):
         """Change the disperser element.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
+        data : `ATSpectrograph_command_changeDisperser`
             Command ID and data
 
         """
         self.assert_enabled("changeDisperser")
         self.assert_move_allowed("changeDisperser")
 
-        if id_data.disperser > 0 and len(id_data.name) > 0:
+        if data.disperser > 0 and len(data.name) > 0:
             raise RuntimeError(f"Either disperser id or filter name must be selected. "
-                               f"Got disperser={id_data.disperser} and name={id_data.name}")
-        elif id_data.disperser == 0 and len(id_data.name) == 0:
+                               f"Got disperser={data.disperser} and name={data.name}")
+        elif data.disperser == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif id_data.disperser < 0 or id_data.disperser > len(self.model.gratings):
-            raise RuntimeError(f"Invalid filter id. Got {id_data.disperser}, must "
+        elif data.disperser < 0 or data.disperser > len(self.model.gratings):
+            raise RuntimeError(f"Invalid filter id. Got {data.disperser}, must "
                                f"be between 0 and {len(self.model.gratings)}")
-        elif id_data.disperser > 0:
-            disperser_id = int(ATSpectrograph.DisperserPosition(id_data.disperser))
+        elif data.disperser > 0:
+            disperser_id = int(ATSpectrograph.DisperserPosition(data.disperser))
             disperser_name = str(list(self.model.gratings.keys())[disperser_id-1])
         else:
-            disperser_name = id_data.name
-            disperser_id = int(self.model.gratings[id_data.name])
+            disperser_name = data.name
+            disperser_id = int(self.model.gratings[data.name])
 
         await self.move_element(query="query_gw_status",
                                 move="move_gw",
@@ -247,32 +247,32 @@ class CSC(salobj.ConfigurableCsc):
                                 report_state="gwState",
                                 position_name=disperser_name)
 
-    async def do_changeFilter(self, id_data):
+    async def do_changeFilter(self, data):
         """Change filter.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_changeFilter`
+            Command data
 
         """
         self.assert_enabled("changeFilter")
         self.assert_move_allowed("changeFilter")
 
-        if id_data.filter > 0 and len(id_data.name) > 0:
+        if data.filter > 0 and len(data.name) > 0:
             raise RuntimeError(f"Either filter id or filter name must be selected. "
-                               f"Got filter={id_data.filter} and name={id_data.name}")
-        elif id_data.filter == 0 and len(id_data.name) == 0:
+                               f"Got filter={data.filter} and name={data.name}")
+        elif data.filter == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif id_data.filter < 0 or id_data.filter > len(self.model.filters):
-            raise RuntimeError(f"Invalid filter id. Got {id_data.filter}, must "
+        elif data.filter < 0 or data.filter > len(self.model.filters):
+            raise RuntimeError(f"Invalid filter id. Got {data.filter}, must "
                                f"be between 0 and {len(self.model.filters)}")
-        elif id_data.filter > 0:
-            filter_id = int(ATSpectrograph.FilterPosition(id_data.filter))
+        elif data.filter > 0:
+            filter_id = int(ATSpectrograph.FilterPosition(data.filter))
             filter_name = str(list(self.model.filters.keys())[filter_id-1])
         else:
-            filter_name = id_data.name
-            filter_id = int(self.model.filters[id_data.name])
+            filter_name = data.name
+            filter_id = int(self.model.filters[data.name])
 
         await self.move_element(query="query_fw_status",
                                 move="move_fw",
@@ -282,13 +282,13 @@ class CSC(salobj.ConfigurableCsc):
                                 report_state="fwState",
                                 position_name=filter_name)
 
-    async def do_homeLinearStage(self, id_data):
+    async def do_homeLinearStage(self, data):
         """Home linear stage.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_homeLinearStage`
+            Command data
 
         """
         self.assert_enabled("homeLinearStage")
@@ -296,13 +296,13 @@ class CSC(salobj.ConfigurableCsc):
 
         await self.home_gs()
 
-    async def do_moveLinearStage(self, id_data):
+    async def do_moveLinearStage(self, data):
         """Move linear stage.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_moveLinearStage`
+            Command data
 
         """
         self.assert_enabled("moveLinearStage")
@@ -310,18 +310,18 @@ class CSC(salobj.ConfigurableCsc):
 
         await self.move_element(query="query_gs_status",
                                 move="move_gs",
-                                position=id_data.distanceFromHome,
+                                position=data.distanceFromHome,
                                 report="reportedLinearStagePosition",
                                 inposition="linearStageInPosition",
                                 report_state="lsState")
 
-    async def do_stopAllAxes(self, id_data):
+    async def do_stopAllAxes(self, data):
         """Stop all axes.
 
         Parameters
         ----------
-        id_data : `CommandIdData`
-            Command ID and data
+        data : `ATSpectrograph_command_stopAllAxes`
+            Command data
 
         """
         self.assert_enabled("stopAllAxes")
@@ -556,11 +556,11 @@ class CSC(salobj.ConfigurableCsc):
         if self.is_exposing:
             raise salobj.base.ExpectedError(f"Camera is exposing, {action} is not allowed.")
 
-    def monitor_start_integration_callback(self, id_data):
+    def monitor_start_integration_callback(self, data):
         """Set `is_exposing` flag to True."""
         self.is_exposing = True
 
-    def monitor_start_readout_callback(self, id_data):
+    def monitor_start_readout_callback(self, data):
         """Set `is_exposing` flag to False."""
         self.is_exposing = False
 
