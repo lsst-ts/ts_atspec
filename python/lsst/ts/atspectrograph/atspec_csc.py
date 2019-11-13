@@ -102,20 +102,58 @@ class CSC(salobj.ConfigurableCsc):
 
             self.want_connection = False
 
-        for query, report_state in [("query_fw_status", "fwState"),
-                                    ("query_gw_status", "gwState"),
-                                    ("query_gs_status", "lsState")]:
-            try:
-                state = await getattr(self.model, query)(self.want_connection)
-                self.log.debug(f"{query}: {state}")
-                getattr(self, f"evt_{report_state}").set_put(state=state[0])
-            except Exception as e:
-                self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                           errorReport=f"Cannot get information from model for "
-                                                       f"{report_state}.",
-                                           traceback=traceback.format_exc())
-                self.fault()
-                raise e
+        try:
+            # Check/Report linear stage position. Home if position is out of
+            # range.
+            state = await self.model.query_gs_status(self.want_connection)
+            self.log.debug(f"query_gs_status: {state}")
+            if state[1] < 0.:
+                self.log.warning("Linear stage out of range. Homing.")
+                await self.home_element(query="query_gs_status",
+                                        home="init_gs",
+                                        report="reportedLinearStagePosition",
+                                        inposition="linearStageInPosition",
+                                        report_state="lsState")
+            else:
+                self.evt_reportedLinearStagePosition.set_put(position=state[1])
+        except Exception as e:
+            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
+                                       errorReport=f"Cannot get information from model for "
+                                                   f"linear stage.",
+                                       traceback=traceback.format_exc())
+            self.fault()
+            raise e
+
+        try:
+
+            # Check/Report Filter Wheel position.
+            state = await self.model.query_fw_status(self.want_connection)
+            self.log.debug(f"query_fw_status: {state}")
+            filter_name = str(list(self.model.filters.keys())[int(state[1])])
+            self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
+                                                    name=filter_name)
+        except Exception as e:
+            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
+                                       errorReport=f"Cannot get information from model for "
+                                                   f"filter wheel.",
+                                       traceback=traceback.format_exc())
+            self.fault()
+            raise e
+
+        try:
+            # Check/Report Grating Wheel position.
+            state = await self.model.query_gw_status(self.want_connection)
+            self.log.debug(f"query_gw_status: {state}")
+            grating_name = str(list(self.model.gratings.keys())[int(state[1])])
+            self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
+                                                       name=grating_name)
+        except Exception as e:
+            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
+                                       errorReport=f"Cannot get information from model for "
+                                                   f"grating wheel.",
+                                       traceback=traceback.format_exc())
+            self.fault()
+            raise e
 
         self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
 
@@ -294,7 +332,11 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_enabled("homeLinearStage")
         self.assert_move_allowed("homeLinearStage")
 
-        await self.home_gs()
+        await self.home_element(query="query_gs_status",
+                                home="init_gs",
+                                report="reportedLinearStagePosition",
+                                inposition="linearStageInPosition",
+                                report_state="lsState")
 
     async def do_moveLinearStage(self, data):
         """Move linear stage.
@@ -518,13 +560,14 @@ class CSC(salobj.ConfigurableCsc):
 
         """
 
-        current_state = getattr(self, f"evt_{report_state}").data.state
+        current_state = await getattr(self.model, query)(self.want_connection)
         stationary_state = ATSpectrograph.Status.STATIONARY
         homing_state = ATSpectrograph.Status.HOMING
         not_in_position = ATSpectrograph.Status.NOTINPOSITION
 
-        if current_state != stationary_state:
-            raise RuntimeError(f"Element {inposition.split('In')[0]}. Cannot home.")
+        if current_state[0] != stationary_state:
+            raise RuntimeError(f"Element {inposition.split('In')[0]} in {current_state}. "
+                               f"Must be in {stationary_state}. Cannot home.")
         else:
             getattr(self, f"evt_{report_state}").set_put(state=homing_state)
 
@@ -532,8 +575,10 @@ class CSC(salobj.ConfigurableCsc):
             await getattr(self.model, home)()
             p_state = await getattr(self.model, query)(self.want_connection)
         except Exception as e:
-            getattr(self, f"evt_{report_state}").set_put(state=not_in_position)
+            getattr(self, f"evt_{report_state}").set_put(state=not_in_position, force_output=True)
             raise e
+
+        getattr(self, f"evt_{inposition}").set_put(inPosition=False, force_output=True)
 
         # Need to wait for command to complete
         start_time = time.time()
@@ -545,11 +590,13 @@ class CSC(salobj.ConfigurableCsc):
                 p_state = state
 
             if state[0] == ATSpectrograph.Status.STATIONARY:
-                getattr(self, f"evt_{report}").set_put(position=state[1])
-                getattr(self, f"evt_{inposition}").set_put(inPosition=True)
+                getattr(self, f"evt_{report}").set_put(position=state[1], force_output=True)
+                getattr(self, f"evt_{inposition}").set_put(inPosition=True, force_output=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
                 raise TimeoutError(f"Homing element failed...")
+
+            await asyncio.sleep(0.1)
 
     def assert_move_allowed(self, action):
         """Assert that moving the spectrograph elements is allowed."""

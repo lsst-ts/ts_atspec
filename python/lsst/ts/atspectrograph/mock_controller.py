@@ -154,7 +154,7 @@ class MockSpectrographController:
         return " ".encode()
 
     async def lsi(self, val):
-        """home filter wheel"""
+        """home linear stage"""
         self._ls_state = 0
         self._ls_pos = 0
         self._ls_err = 0
