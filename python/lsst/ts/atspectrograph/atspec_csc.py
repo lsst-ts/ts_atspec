@@ -71,7 +71,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_start`
+        data : ATSpectrograph_command_start
             Command data
         """
         self.want_connection = True
@@ -85,7 +85,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_enable`
+        data : ATSpectrograph_command_enable
             Command data
         """
 
@@ -94,10 +94,9 @@ class CSC(salobj.ConfigurableCsc):
             try:
                 await self.model.connect()
             except Exception as e:
-                self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                           errorReport="Cannot connect to controller.",
-                                           traceback=traceback.format_exc())
-                self.fault()
+                self.fault(errorCode=CONNECTION_ERROR,
+                           errorReport="Cannot connect to controller.",
+                           traceback=traceback.format_exc())
                 raise e
 
             self.want_connection = False
@@ -117,11 +116,10 @@ class CSC(salobj.ConfigurableCsc):
             else:
                 self.evt_reportedLinearStagePosition.set_put(position=state[1])
         except Exception as e:
-            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                       errorReport=f"Cannot get information from model for "
-                                                   f"linear stage.",
-                                       traceback=traceback.format_exc())
-            self.fault()
+            self.fault(errorCode=CONNECTION_ERROR,
+                       errorReport=f"Cannot get information from model for "
+                                   f"linear stage.",
+                       traceback=traceback.format_exc())
             raise e
 
         try:
@@ -133,11 +131,10 @@ class CSC(salobj.ConfigurableCsc):
             self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
                                                     name=filter_name)
         except Exception as e:
-            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                       errorReport=f"Cannot get information from model for "
-                                                   f"filter wheel.",
-                                       traceback=traceback.format_exc())
-            self.fault()
+            self.fault(errorCode=CONNECTION_ERROR,
+                       errorReport=f"Cannot get information from model for "
+                                   f"filter wheel.",
+                       traceback=traceback.format_exc())
             raise e
 
         try:
@@ -148,11 +145,10 @@ class CSC(salobj.ConfigurableCsc):
             self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
                                                        name=grating_name)
         except Exception as e:
-            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                       errorReport=f"Cannot get information from model for "
-                                                   f"grating wheel.",
-                                       traceback=traceback.format_exc())
-            self.fault()
+            self.fault(errorCode=CONNECTION_ERROR,
+                       errorReport=f"Cannot get information from model for "
+                                   f"grating wheel.",
+                       traceback=traceback.format_exc())
             raise e
 
         self._health_loop = asyncio.ensure_future(self.health_monitor_loop())
@@ -161,6 +157,9 @@ class CSC(salobj.ConfigurableCsc):
 
     async def end_disable(self, data):
 
+        # TODO: Russell Owen suggest using putting this in
+        # `handle_summary_state` instead and calling it whenever the state
+        # leaves "enabled".
         try:
             await asyncio.wait_for(self._health_loop, timeout=self.timeout)
         except asyncio.TimeoutError as e:
@@ -177,10 +176,9 @@ class CSC(salobj.ConfigurableCsc):
         try:
             await self.model.disconnect()
         except Exception as e:
-            self.evt_errorCode.set_put(errorCode=CONNECTION_ERROR,
-                                       errorReport="Cannot disconnect from controller.",
-                                       traceback=traceback.format_exc())
-            self.fault()
+            self.fault(errorCode=CONNECTION_ERROR,
+                       errorReport="Cannot disconnect from controller.",
+                       traceback=traceback.format_exc())
             raise e
 
         await super().end_disable(data)
@@ -199,22 +197,19 @@ class CSC(salobj.ConfigurableCsc):
 
                 # Make sure none of the sub-components are in fault. Go to fault state if so.
                 if ls_state[2] != ATSpectrograph.Error.NONE:
-                    self.fault()
                     self.log.error(f"Linear stage in error: {ls_state}")
-                    self.evt_errorCode.set_put(errorCode=LS_ERROR,
-                                               errorReport=f"Linear stage in error: {ls_state}")
+                    self.fault(errorCode=LS_ERROR,
+                               errorReport=f"Linear stage in error: {ls_state}")
                     break
                 elif fw_state[2] != ATSpectrograph.Error.NONE:
-                    self.fault()
                     self.log.error(f"Filter wheel in error: {fw_state}")
-                    self.evt_errorCode.set_put(errorCode=FW_ERROR,
-                                               errorReport=f"Filter wheel  in error: {fw_state}")
+                    self.fault(errorCode=FW_ERROR,
+                               errorReport=f"Filter wheel  in error: {fw_state}")
                     break
                 elif gw_state[2] != ATSpectrograph.Error.NONE:
-                    self.fault()
                     self.log.error(f"Grating wheel in error: {gw_state}")
-                    self.evt_errorCode.set_put(errorCode=GW_ERROR,
-                                               errorReport=f"Grating wheel in error: {gw_state}")
+                    self.fault(errorCode=GW_ERROR,
+                               errorReport=f"Grating wheel in error: {gw_state}")
                     break
 
                 # # Publish state of each component
@@ -243,19 +238,17 @@ class CSC(salobj.ConfigurableCsc):
                 # gw_pstate = gw_state
 
                 await asyncio.sleep(salobj.base_csc.HEARTBEAT_INTERVAL)
-            except Exception as e:
-                self.fault()
-                self.log.exception(e)
-                self.evt_errorCode.set_put(errorCode=HEALTH_LOOP_DIED,
-                                           errorReport="Health loop died for some unspecified reason.",
-                                           traceback=traceback.format_exc())
+            except Exception:
+                self.fault(errorCode=HEALTH_LOOP_DIED,
+                           errorReport="Health loop died for some unspecified reason.",
+                           traceback=traceback.format_exc())
 
     async def do_changeDisperser(self, data):
         """Change the disperser element.
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_changeDisperser`
+        data : ATSpectrograph_command_changeDisperser
             Command ID and data
 
         """
@@ -290,7 +283,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_changeFilter`
+        data : ATSpectrograph_command_changeFilter
             Command data
 
         """
@@ -325,7 +318,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_homeLinearStage`
+        data : ATSpectrograph_command_homeLinearStage
             Command data
 
         """
@@ -343,7 +336,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_moveLinearStage`
+        data : ATSpectrograph_command_moveLinearStage
             Command data
 
         """
@@ -362,7 +355,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `ATSpectrograph_command_stopAllAxes`
+        data : ATSpectrograph_command_stopAllAxes
             Command data
 
         """
@@ -377,7 +370,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        simulation_mode : `int`
+        simulation_mode : int
             Requested simulation mode; 0 for normal operation.
 
         Raises
@@ -620,7 +613,7 @@ class CSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        config : `object`
+        config : object
             The configuration as described by the schema at ``schema_path``,
             as a struct-like object.
 

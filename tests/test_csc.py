@@ -68,10 +68,9 @@ class TestATSpecCSC(asynctest.TestCase):
             self.assertEqual(harness.csc.summary_state, salobj.State.STANDBY)
             self.assertEqual(current_state.summaryState, salobj.State.STANDBY)
 
-            # Check that settingVersions was published and matches expected values
-            sv = await harness.remote.evt_settingVersions.next(flush=False,
-                                                               timeout=BASE_TIMEOUT)
-            self.assertIsNotNone(sv)
+            # Check that settingVersions was published
+            await harness.remote.evt_settingVersions.next(flush=False,
+                                                          timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("start", "exitControl"):
@@ -92,9 +91,8 @@ class TestATSpecCSC(asynctest.TestCase):
             self.assertEqual(state.summaryState, salobj.State.DISABLED)
 
             # Check that settings applied was published
-            settings = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                     timeout=BASE_TIMEOUT)
-            self.assertIsNotNone(settings)
+            await harness.remote.evt_settingsApplied.next(flush=False,
+                                                          timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("enable", "standby"):
@@ -118,13 +116,9 @@ class TestATSpecCSC(asynctest.TestCase):
             self.assertEqual(state.summaryState, salobj.State.ENABLED)
 
             # check that position was published
-            ls = await harness.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
-            fw = await harness.remote.evt_reportedFilterPosition.aget(timeout=BASE_TIMEOUT)
-            gw = await harness.remote.evt_reportedDisperserPosition.aget(timeout=BASE_TIMEOUT)
-
-            self.assertIsNotNone(ls)
-            self.assertIsNotNone(fw)
-            self.assertIsNotNone(gw)
+            await harness.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
+            await harness.remote.evt_reportedFilterPosition.aget(timeout=BASE_TIMEOUT)
+            await harness.remote.evt_reportedDisperserPosition.aget(timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("disable", "changeDisperser", "changeFilter",
