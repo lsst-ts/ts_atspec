@@ -50,7 +50,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_atspectrograph -t saluser && scons || pytest --lf \"
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_atspectrograph -t saluser && pytest --junitxml=\${XML_REPORT}\"
                     """
                 }
             }
@@ -60,14 +60,14 @@ pipeline {
         always {
             // The path of xml needed by JUnit is relative to
             // the workspace.
-            junit 'tests/.tests/*.xml'
+            // junit 'jenkinsReport/*.xml'
 
             // Publish the HTML report
             publishHTML (target: [
                 allowMissing: false,
                 alwaysLinkToLastBuild: false,
                 keepAll: true,
-                reportDir: 'tests/.tests/pytest-ts_atspectrograph.xml-htmlcov/',
+                reportDir: 'jenkinsReport/',
                 reportFiles: 'index.html',
                 reportName: "Coverage Report"
               ])
