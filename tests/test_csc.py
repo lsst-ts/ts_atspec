@@ -91,8 +91,8 @@ class TestATSpecCSC(asynctest.TestCase):
             self.assertEqual(state.summaryState, salobj.State.DISABLED)
 
             # Check that settings applied was published
-            await harness.remote.evt_settingsApplied.next(flush=False,
-                                                          timeout=BASE_TIMEOUT)
+            settings = await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                           timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("enable", "standby"):
@@ -143,8 +143,8 @@ class TestATSpecCSC(asynctest.TestCase):
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
-            set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                        timeout=BASE_TIMEOUT)
+            set_applied = await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                              timeout=BASE_TIMEOUT)
 
             for i, filter_name in enumerate(set_applied.filterNames.split(',')):
 
@@ -198,8 +198,8 @@ class TestATSpecCSC(asynctest.TestCase):
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
-            set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                        timeout=BASE_TIMEOUT)
+            set_applied = await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                              timeout=BASE_TIMEOUT)
 
             for i, disperser_name in enumerate(set_applied.gratingNames.split(',')):
 
