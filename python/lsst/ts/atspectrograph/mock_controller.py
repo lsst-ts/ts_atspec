@@ -178,7 +178,7 @@ class MockSpectrographController:
                 self._fw_pos = new_pos
                 return " ".encode()
             else:
-                return "?Unknown"
+                return "Invalid Argument"
         except Exception:
             return "?Unknown"
 
@@ -194,7 +194,7 @@ class MockSpectrographController:
                 self._gw_pos = new_pos
                 return " ".encode()
             else:
-                return "?Unknown"
+                return "Invalid Argument"
         except Exception:
             return "?Unknown"
 
@@ -211,6 +211,6 @@ class MockSpectrographController:
                 self._ls_pos = new_pos
                 return " ".encode()
             else:
-                return "?Unknown"
+                return "Invalid Argument"
         except Exception:
             return "?Unknown"
