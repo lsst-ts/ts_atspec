@@ -91,8 +91,8 @@ class TestATSpecCSC(asynctest.TestCase):
             self.assertEqual(state.summaryState, salobj.State.DISABLED)
 
             # Check that settings applied was published
-            settings = await harness.remote.evt_settingsAppliedValues.next(flush=False,
-                                                                           timeout=BASE_TIMEOUT)
+            await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("enable", "standby"):
