@@ -37,6 +37,15 @@ pipeline {
                 }
             }
         }
+        stage("Checkout xml") {
+            steps {
+                script {
+                    sh """
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd /home/saluser/repos/ts_xml && /home/saluser/.checkout_repo.sh \${work_branches}\"
+                    """
+                }
+            }
+        }
         stage("Build IDL files") {
             steps {
                 script {
