@@ -38,7 +38,7 @@ properties:
     default:
      - empty_1
      - empty_2
-     - disperser
+     - diffuser
      - empty_3
   gratings:
     decription: Currently installed grating names.
