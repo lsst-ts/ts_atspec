@@ -672,14 +672,29 @@ class CSC(salobj.ConfigurableCsc):
             if i < len(self.model.gratings) - 1:
                 gratings_str += ','
 
-        self.evt_settingsAppliedValues.set_put(host=self.model.host,
-                                               port=self.model.port,
-                                               linearStageMinPos=self.model.min_pos,
-                                               linearStageMaxPos=self.model.max_pos,
-                                               linearStageSpeed=0.,
-                                               filterNames=filters_str,
-                                               gratingNames=gratings_str,
-                                               instrumentPort=config.instrument_port)
+        if hasattr(self, "evt_settingsAppliedValues"):
+            self.evt_settingsAppliedValues.set_put(host=self.model.host,
+                                                   port=self.model.port,
+                                                   linearStageMinPos=self.model.min_pos,
+                                                   linearStageMaxPos=self.model.max_pos,
+                                                   linearStageSpeed=0.,
+                                                   filterNames=filters_str,
+                                                   gratingNames=gratings_str,
+                                                   instrumentPort=config.instrument_port)
+        elif hasattr(self, "evt_settingsApplied"):
+            self.evt_settingsApplied.set_put(host=self.model.host,
+                                             port=self.model.port,
+                                             linearStageMinPos=self.model.min_pos,
+                                             linearStageMaxPos=self.model.max_pos,
+                                             linearStageSpeed=0.,
+                                             filterNames=filters_str,
+                                             gratingNames=gratings_str,
+                                             instrumentPort=config.instrument_port)
+        else:
+            self.log.warning("No settingsApplied or settingsAppliedValues event.")
+            self.log.info(f"host:{self.model.host},port:{self.model.port},"
+                          f"filterNames:{filters_str},gratingNames:{gratings_str},"
+                          f"instrumentPort:{config.instrument_port}")
 
     async def close(self):
         if self.mock_ctrl is not None:
