@@ -701,3 +701,14 @@ class CSC(salobj.ConfigurableCsc):
             await self.mock_ctrl.stop(timeout=self.timeout)
 
         await super().close()
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super(CSC, cls).add_arguments(parser)
+        parser.add_argument("-s", "--simulate", action="store_true",
+                            help="Run in simuation mode?")
+
+    @classmethod
+    def add_kwargs_from_args(cls, args, kwargs):
+        super(CSC, cls).add_kwargs_from_args(args, kwargs)
+        kwargs["initial_simulation_mode"] = 1 if args.simulate else 0
