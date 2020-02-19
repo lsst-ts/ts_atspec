@@ -94,8 +94,8 @@ class CSC(salobj.ConfigurableCsc):
             try:
                 await self.model.connect()
             except Exception as e:
-                self.fault(errorCode=CONNECTION_ERROR,
-                           errorReport="Cannot connect to controller.",
+                self.fault(code=CONNECTION_ERROR,
+                           report="Cannot connect to controller.",
                            traceback=traceback.format_exc())
                 raise e
 
@@ -116,9 +116,9 @@ class CSC(salobj.ConfigurableCsc):
             else:
                 self.evt_reportedLinearStagePosition.set_put(position=state[1])
         except Exception as e:
-            self.fault(errorCode=CONNECTION_ERROR,
-                       errorReport=f"Cannot get information from model for "
-                                   f"linear stage.",
+            self.fault(code=CONNECTION_ERROR,
+                       report=f"Cannot get information from model for "
+                              f"linear stage.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -131,9 +131,9 @@ class CSC(salobj.ConfigurableCsc):
             self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
                                                     name=filter_name)
         except Exception as e:
-            self.fault(errorCode=CONNECTION_ERROR,
-                       errorReport=f"Cannot get information from model for "
-                                   f"filter wheel.",
+            self.fault(code=CONNECTION_ERROR,
+                       report=f"Cannot get information from model for "
+                              f"filter wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -145,9 +145,9 @@ class CSC(salobj.ConfigurableCsc):
             self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
                                                        name=grating_name)
         except Exception as e:
-            self.fault(errorCode=CONNECTION_ERROR,
-                       errorReport=f"Cannot get information from model for "
-                                   f"grating wheel.",
+            self.fault(code=CONNECTION_ERROR,
+                       report=f"Cannot get information from model for "
+                              f"grating wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -176,8 +176,8 @@ class CSC(salobj.ConfigurableCsc):
         try:
             await self.model.disconnect()
         except Exception as e:
-            self.fault(errorCode=CONNECTION_ERROR,
-                       errorReport="Cannot disconnect from controller.",
+            self.fault(code=CONNECTION_ERROR,
+                       report="Cannot disconnect from controller.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -198,18 +198,18 @@ class CSC(salobj.ConfigurableCsc):
                 # Make sure none of the sub-components are in fault. Go to fault state if so.
                 if ls_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Linear stage in error: {ls_state}")
-                    self.fault(errorCode=LS_ERROR,
-                               errorReport=f"Linear stage in error: {ls_state}")
+                    self.fault(code=LS_ERROR,
+                               report=f"Linear stage in error: {ls_state}")
                     break
                 elif fw_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Filter wheel in error: {fw_state}")
-                    self.fault(errorCode=FW_ERROR,
-                               errorReport=f"Filter wheel  in error: {fw_state}")
+                    self.fault(code=FW_ERROR,
+                               report=f"Filter wheel  in error: {fw_state}")
                     break
                 elif gw_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Grating wheel in error: {gw_state}")
-                    self.fault(errorCode=GW_ERROR,
-                               errorReport=f"Grating wheel in error: {gw_state}")
+                    self.fault(code=GW_ERROR,
+                               report=f"Grating wheel in error: {gw_state}")
                     break
 
                 # # Publish state of each component
@@ -239,8 +239,8 @@ class CSC(salobj.ConfigurableCsc):
 
                 await asyncio.sleep(salobj.base_csc.HEARTBEAT_INTERVAL)
             except Exception:
-                self.fault(errorCode=HEALTH_LOOP_DIED,
-                           errorReport="Health loop died for some unspecified reason.",
+                self.fault(code=HEALTH_LOOP_DIED,
+                           report="Health loop died for some unspecified reason.",
                            traceback=traceback.format_exc())
 
     async def do_changeDisperser(self, data):
@@ -662,27 +662,53 @@ class CSC(salobj.ConfigurableCsc):
         print(self.model.gratings)
         filters_str = ''
         for i, f in enumerate(self.model.filters):
-            filters_str += str(f).lower()
+            filters_str += str(f)
             if i < len(self.model.filters) - 1:
                 filters_str += ','
 
         gratings_str = ''
         for i, f in enumerate(self.model.gratings):
-            gratings_str += str(f).lower()
+            gratings_str += str(f)
             if i < len(self.model.gratings) - 1:
                 gratings_str += ','
 
-        self.evt_settingsAppliedValues.set_put(host=self.model.host,
-                                               port=self.model.port,
-                                               linearStageMinPos=self.model.min_pos,
-                                               linearStageMaxPos=self.model.max_pos,
-                                               linearStageSpeed=0.,
-                                               filterNames=filters_str,
-                                               gratingNames=gratings_str,
-                                               instrumentPort=config.instrument_port)
+        if hasattr(self, "evt_settingsAppliedValues"):
+            self.evt_settingsAppliedValues.set_put(host=self.model.host,
+                                                   port=self.model.port,
+                                                   linearStageMinPos=self.model.min_pos,
+                                                   linearStageMaxPos=self.model.max_pos,
+                                                   linearStageSpeed=0.,
+                                                   filterNames=filters_str,
+                                                   gratingNames=gratings_str,
+                                                   instrumentPort=config.instrument_port)
+        elif hasattr(self, "evt_settingsApplied"):
+            self.evt_settingsApplied.set_put(host=self.model.host,
+                                             port=self.model.port,
+                                             linearStageMinPos=self.model.min_pos,
+                                             linearStageMaxPos=self.model.max_pos,
+                                             linearStageSpeed=0.,
+                                             filterNames=filters_str,
+                                             gratingNames=gratings_str,
+                                             instrumentPort=config.instrument_port)
+        else:
+            self.log.warning("No settingsApplied or settingsAppliedValues event.")
+            self.log.info(f"host:{self.model.host},port:{self.model.port},"
+                          f"filterNames:{filters_str},gratingNames:{gratings_str},"
+                          f"instrumentPort:{config.instrument_port}")
 
     async def close(self):
         if self.mock_ctrl is not None:
             await self.mock_ctrl.stop(timeout=self.timeout)
 
         await super().close()
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super(CSC, cls).add_arguments(parser)
+        parser.add_argument("-s", "--simulate", action="store_true",
+                            help="Run in simuation mode?")
+
+    @classmethod
+    def add_kwargs_from_args(cls, args, kwargs):
+        super(CSC, cls).add_kwargs_from_args(args, kwargs)
+        kwargs["initial_simulation_mode"] = 1 if args.simulate else 0
