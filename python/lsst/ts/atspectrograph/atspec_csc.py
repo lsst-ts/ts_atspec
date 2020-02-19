@@ -662,13 +662,13 @@ class CSC(salobj.ConfigurableCsc):
         print(self.model.gratings)
         filters_str = ''
         for i, f in enumerate(self.model.filters):
-            filters_str += str(f).lower()
+            filters_str += str(f)
             if i < len(self.model.filters) - 1:
                 filters_str += ','
 
         gratings_str = ''
         for i, f in enumerate(self.model.gratings):
-            gratings_str += str(f).lower()
+            gratings_str += str(f)
             if i < len(self.model.gratings) - 1:
                 gratings_str += ','
 
