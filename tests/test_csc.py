@@ -24,9 +24,9 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "c
 
 
 class Harness:
-    def __init__(self, initial_simulation_mode=0):
+    def __init__(self, simulation_mode=0):
         salobj.test_utils.set_random_lsst_dds_domain()
-        self.csc = csc.CSC(initial_simulation_mode=initial_simulation_mode)
+        self.csc = csc.CSC(simulation_mode=simulation_mode)
         self.remote = salobj.Remote(self.csc.domain, "ATSpectrograph")
 
     async def __aenter__(self):
@@ -55,7 +55,7 @@ class TestATSpecCSC(asynctest.TestCase):
         * exitControl: STANDBY, FAULT to OFFLINE (quit)
         """
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             commands = ("start", "enable", "disable", "exitControl", "standby",
                         "changeDisperser", "changeFilter", "homeLinearStage",
@@ -143,7 +143,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
     async def test_changeFilter(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -207,7 +207,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
     async def test_changeDisperser(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -271,7 +271,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
     async def test_moveLinearStage(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -297,7 +297,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
     async def test_homeLinearStage(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 

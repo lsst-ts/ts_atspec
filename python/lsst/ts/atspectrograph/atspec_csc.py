@@ -26,7 +26,7 @@ class CSC(salobj.ConfigurableCsc):
     """
 
     def __init__(self, config_dir=None, initial_state=salobj.State.STANDBY,
-                 initial_simulation_mode=0):
+                 simulation_mode=0):
         """
         Initialize AT Spectrograph CSC.
         """
@@ -40,7 +40,7 @@ class CSC(salobj.ConfigurableCsc):
                          schema_path=schema_path,
                          config_dir=config_dir,
                          initial_state=initial_state,
-                         initial_simulation_mode=initial_simulation_mode)
+                         simulation_mode=simulation_mode)
 
         # Add a remote for the ATCamera to monitor if it is exposing or not.
         # If it is, reject commands that would cause motion.
@@ -711,4 +711,4 @@ class CSC(salobj.ConfigurableCsc):
     @classmethod
     def add_kwargs_from_args(cls, args, kwargs):
         super(CSC, cls).add_kwargs_from_args(args, kwargs)
-        kwargs["initial_simulation_mode"] = 1 if args.simulate else 0
+        kwargs["simulation_mode"] = 1 if args.simulate else 0
