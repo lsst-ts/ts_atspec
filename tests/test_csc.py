@@ -197,7 +197,6 @@ class TestATSpecCSC(asynctest.TestCase):
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
                     await harness.remote.cmd_changeFilter.set_start(filter=filter_id,
-                                                                    name='',
                                                                     timeout=LONG_TIMEOUT)
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False,

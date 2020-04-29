@@ -127,7 +127,17 @@ class CSC(salobj.ConfigurableCsc):
             # Check/Report Filter Wheel position.
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
+            # TODO: this area needs documentation on why this state works as such.
             filter_name = str(list(self.model.filters.keys())[int(state[1])])
+            #filter_central_wavelength = (self.config.filters_central_wavelength
+            #print(f'Filter central wavelength {filter_central_wavelength}')
+
+            print('intstate')
+            print(int(state[1]))
+            print('keys')
+            print(str(list(self.model.filters.keys())))
+
+
             self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
                                                     name=filter_name)
         except Exception as e:
@@ -642,13 +652,19 @@ class CSC(salobj.ConfigurableCsc):
                 (len(config.filters['central_wavelength']) == len(ATSpectrograph.FilterPosition) - 1) and \
                 (len(config.filters['focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
             self.model.filters = dict()
+#            self.model.filters = {name: [] ,  position: []. enum: [], central_wavelength: [], focus_offset: []}
+
+            # enumeration
             for i, f in enumerate(ATSpectrograph.FilterPosition):
 
                 self.model.filters[config.filters['name'][i]] = f
+
                 # Why do this? Appears enums can go larger than 3?
                 if i == len(ATSpectrograph.FilterPosition)-2:
                     break
         else:
+            # This shouldn't be able to be called as the configuration file should have first been validated
+            # to have the appropriate number of values
             raise RuntimeError(f"Invalid filter configuration. Need same number of values for all attributes. Expected "
                                f"{len(ATSpectrograph.FilterPosition)} entries, got "
                                f"{len(config.filters['name'])} for name,"
@@ -665,23 +681,35 @@ class CSC(salobj.ConfigurableCsc):
                 if i == len(ATSpectrograph.DisperserPosition)-2:
                     break
         else:
+            # This shouldn't be able to be called as the configuration file should have first been validated
+            # to have the appropriate number of values
             raise RuntimeError("Invalid grating name configuration. Expected "
                                f"{len(ATSpectrograph.DisperserPosition)} entries, got "
                                f"{len(config.gratings['name'])} for name,"
                                f"{len(config.gratings['focus_offset'])} for focus_offset")
 
 
-        filters_str = ''
+        # settingsApplied needs to publish the comma separated string
+        filters_str = {'name': '', 'central_wavelength': '', 'focus_offset': ''}
         for i, f in enumerate(self.model.filters):
-            filters_str += str(f)
+            filters_str['name'] += str(f)
+            filters_str['central_wavelength'] += str(config.filters['central_wavelength'][i])
+            filters_str['focus_offset'] += str(config.filters['focus_offset'][i])
+            # need to add comma, except for the last value
             if i < len(self.model.filters) - 1:
-                filters_str += ','
+                # loop over keys to add a comma for each
+                for key in filters_str:
+                    filters_str[key] += ', '
 
-        gratings_str = ''
+        gratings_str = {'name': '', 'focus_offset': ''}
         for i, f in enumerate(self.model.gratings):
-            gratings_str += str(f)
+            gratings_str['name'] += str(f)
+            gratings_str['focus_offset'] += str(config.gratings['focus_offset'][i])
+            # need to add comma, except for the last value
             if i < len(self.model.gratings) - 1:
-                gratings_str += ','
+                # loop over keys to add a comma for each
+                for key in gratings_str:
+                    gratings_str[key] += ', '
 
         if hasattr(self, "evt_settingsAppliedValues"):
             self.evt_settingsAppliedValues.set_put(host=self.model.host,
@@ -689,12 +717,12 @@ class CSC(salobj.ConfigurableCsc):
                                                    linearStageMinPos=self.model.min_pos,
                                                    linearStageMaxPos=self.model.max_pos,
                                                    linearStageSpeed=0.,
-                                                   filterNames=filters_str,
-                                                   gratingNames=gratings_str,
+                                                   filterNames=filters_str['name'],
+                                                   filterCentralWavelengths=filters_str['central_wavelength'],
+                                                   filterFocusOffsets=filters_str['focus_offset'],
+                                                   gratingNames=gratings_str['name'],
+                                                   gratingFocusOffsets=gratings_str['focus_offset'],
                                                    instrumentPort=config.instrument_port)
-        #                                          gratingFocusOffsets=filters_str,
-        #                                          filterCentralWavelengths=filters_str,
-        #                                          #filterFocusOffsets=filters_str,
 
         elif hasattr(self, "evt_settingsApplied"):
             self.evt_settingsApplied.set_put(host=self.model.host,
@@ -702,9 +730,13 @@ class CSC(salobj.ConfigurableCsc):
                                              linearStageMinPos=self.model.min_pos,
                                              linearStageMaxPos=self.model.max_pos,
                                              linearStageSpeed=0.,
-                                             filterNames=filters_str,
-                                             gratingNames=gratings_str,
+                                             filterNames=filters_str['name'],
+                                             filterCentralWavelengths=filters_str['central_wavelength'],
+                                             filterFocusOffsets=filters_str['focus_offset'],
+                                             gratingNames=gratings_str['name'],
+                                             gratingFocusOffsets=gratings_str['focus_offset'],
                                              instrumentPort=config.instrument_port)
+
         else:
             self.log.warning("No settingsApplied or settingsAppliedValues event.")
             self.log.info(f"host:{self.model.host},port:{self.model.port},"
