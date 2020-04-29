@@ -314,6 +314,7 @@ class CSC(salobj.ConfigurableCsc):
                                 position_name=filter_name)
 
     async def do_homeLinearStage(self, data):
+
         """Home linear stage.
 
         Parameters
@@ -635,22 +636,32 @@ class CSC(salobj.ConfigurableCsc):
 
         self.model.tolerance = config.tolerance
 
-        if len(config.filters) == len(ATSpectrograph.FilterPosition)-1:
+        # Verify configurations for filters are populated correctly.
+        # create dictionary mapping the name to the filter position
+        if (len(config.filters['name']) == len(ATSpectrograph.FilterPosition)-1)and \
+                (len(config.filters['central_wavelength']) == len(ATSpectrograph.FilterPosition) - 1) and \
+                (len(config.filters['focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
             self.model.filters = dict()
             for i, f in enumerate(ATSpectrograph.FilterPosition):
                 print(self.model.filters)
-                self.model.filters[config.filters[i]] = f
+                self.model.filters[config.filters['name'][i]] = f
+                # Why do this? Appears enums can go larger than 3?
                 if i == len(ATSpectrograph.FilterPosition)-2:
                     break
         else:
-            raise RuntimeError(f"Invalid filter name configuration. Expected "
+            raise RuntimeError(f"Invalid filter configuration. Need same number of values for all attributes. Expected "
                                f"{len(ATSpectrograph.FilterPosition)} entries, got "
-                               f"{len(config.filters)}")
+                               f"{len(config.filters['name'])} for name,"
+                               f"{len(config.filters['central_wavelength'])} for central_wavelength,"
+                               f"{len(config.filters['focus_offset'])} for focus_offset")
 
-        if len(config.gratings) == len(ATSpectrograph.DisperserPosition)-1:
+
+        # Verify configurations for gratings are populated correctly.
+        # create dictionary mapping the name to the grating position
+        if len(config.gratings['name']) == len(ATSpectrograph.DisperserPosition)-1:
             self.model.gratings = dict()
             for i, g in enumerate(ATSpectrograph.DisperserPosition):
-                self.model.gratings[config.gratings[i]] = g
+                self.model.gratings[config.gratings['name'][i]] = g
                 if i == len(ATSpectrograph.DisperserPosition)-2:
                     break
         else:
@@ -681,6 +692,10 @@ class CSC(salobj.ConfigurableCsc):
                                                    filterNames=filters_str,
                                                    gratingNames=gratings_str,
                                                    instrumentPort=config.instrument_port)
+        #                                          gratingFocusOffsets=filters_str,
+        #                                          filterCentralWavelengths=filters_str,
+        #                                          #filterFocusOffsets=filters_str,
+
         elif hasattr(self, "evt_settingsApplied"):
             self.evt_settingsApplied.set_put(host=self.model.host,
                                              port=self.model.port,

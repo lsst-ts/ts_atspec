@@ -1,12 +1,12 @@
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_atspec/blob/master/schema/ATSpectrograph.yaml
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
-title: ATSpectrograph v1
+title: ATSpectrograph v2
 description: Schema for ATSpectrograph configuration files
 type: object
 properties:
   instrument_port:
-    description: What port is the instrument mounted on the telescope?
+    description: The port on which the instrument mounted on the telescope
     type: number
     default: 1
   host:
@@ -30,25 +30,71 @@ properties:
     type: number
     default: 0.01
   filters:
-    decription: Currently installed filter names.
-    type: array
-    uniqueItems: true
-    items:
-      type: string
-    default:
-     - empty_1
-     - empty_2
-     - diffuser
-     - empty_3
+    type: object
+    properties:
+      name:
+        decription: Currently installed filter names.
+        default:
+          - empty_1
+          - empty_2
+          - diffuser
+          - empty_3
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      central_wavelength:
+        description: Wavelength for which optical system will be opimized in units of nm. Approximations are sufficient as the focus dependence on wavelength is weak.
+        type: array
+        items:
+          type: number
+        default:
+          - 700
+          - 700
+          - 700
+          - 700
+      focus_offset:
+        description: >
+          Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
+          Positive values push the secondary down and increase the back focal distance, therefore adding glass
+          thickness will result in positive focus offsets.
+        type: array
+        uniqueItems: false
+        items:
+          type: number
+        default:
+          - 0.0
+          - 0.0
+          - 5.0
+          - 0.0
+
   gratings:
-    decription: Currently installed grating names.
-    type: array
-    uniqueItems: true
-    items:
-      type: string
-    default:
-      - empty
-      - ronchi170lpmm
-      - ronchi90lpmm
-      - holo_etu1
+    type: object
+    properties:
+      name:
+        decription: Currently installed grating names.
+        default:
+          - empty
+          - ronchi170lpmm
+          - ronchi90lpmm
+          - holo_etu1
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+      focus_offset:
+        description: >
+          Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
+          Positive values push the secondary down and increase the back focal distance, therefore adding glass
+          thickness will result in positive focus offsets.
+        type: array
+        uniqueItems: false
+        items:
+          type: number
+        default:
+          - 0.0
+          - 6.0
+          - 6.0
+          - 0.0
+
 additionalProperties: false
