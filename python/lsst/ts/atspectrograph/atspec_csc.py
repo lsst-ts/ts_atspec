@@ -128,15 +128,7 @@ class CSC(salobj.ConfigurableCsc):
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
             # TODO: this area needs documentation on why this state works as such.
-            filter_name = str(list(self.model.filters.keys())[int(state[1])])
-            #filter_central_wavelength = (self.config.filters_central_wavelength
-            #print(f'Filter central wavelength {filter_central_wavelength}')
-
-            print('intstate')
-            print(int(state[1]))
-            print('keys')
-            print(str(list(self.model.filters.keys())))
-
+            filter_name = str(list(self.model.filter_to_enum_mapping_dict.keys())[int(state[1])])
 
             self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
                                                     name=filter_name)
@@ -300,20 +292,25 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_enabled("changeFilter")
         self.assert_move_allowed("changeFilter")
 
+        print('received data in do_changeFilter')
+        print(data)
+        print(f'data.name is {data.name}')
+        print(f'data.filter is {data.filter}')
+
         if data.filter > 0 and len(data.name) > 0:
             raise RuntimeError(f"Either filter id or filter name must be selected. "
                                f"Got filter={data.filter} and name={data.name}")
         elif data.filter == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif data.filter < 0 or data.filter > len(self.model.filters):
+        elif data.filter < 0 or data.filter > len(self.model.filter_to_enum_mapping_dict):
             raise RuntimeError(f"Invalid filter id. Got {data.filter}, must "
-                               f"be between 0 and {len(self.model.filters)}")
+                               f"be between 0 and {len(self.model.filter_to_enum_mapping_dict)}")
         elif data.filter > 0:
             filter_id = int(ATSpectrograph.FilterPosition(data.filter))
-            filter_name = str(list(self.model.filters.keys())[filter_id-1])
+            filter_name = str(list(self.model.filter_to_enum_mapping_dict.keys())[filter_id-1])
         else:
             filter_name = data.name
-            filter_id = int(self.model.filters[data.name])
+            filter_id = int(self.model.filter_to_enum_mapping_dict[data.name])
 
         await self.move_element(query="query_fw_status",
                                 move="move_fw",
@@ -322,6 +319,8 @@ class CSC(salobj.ConfigurableCsc):
                                 inposition="filterInPosition",
                                 report_state="fwState",
                                 position_name=filter_name)
+
+
 
     async def do_homeLinearStage(self, data):
 
@@ -646,18 +645,17 @@ class CSC(salobj.ConfigurableCsc):
 
         self.model.tolerance = config.tolerance
 
-        # Verify configurations for filters are populated correctly.
+        # Verify configurations for filter_to_enum_mapping_dict are populated correctly.
         # create dictionary mapping the name to the filter position
-        if (len(config.filters['name']) == len(ATSpectrograph.FilterPosition)-1)and \
+        if (len(config.filters['name']) == len(ATSpectrograph.FilterPosition) - 1)and \
                 (len(config.filters['central_wavelength']) == len(ATSpectrograph.FilterPosition) - 1) and \
                 (len(config.filters['focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
-            self.model.filters = dict()
-#            self.model.filters = {name: [] ,  position: []. enum: [], central_wavelength: [], focus_offset: []}
+            self.model.filter_to_enum_mapping_dict = dict()
+            #self.filter_info = config.filters
 
-            # enumeration
+            # create relationship between filter name and enumeration since either can be used as inputs
             for i, f in enumerate(ATSpectrograph.FilterPosition):
-
-                self.model.filters[config.filters['name'][i]] = f
+                self.model.filter_to_enum_mapping_dict[config.filters['name'][i]] = f
 
                 # Why do this? Appears enums can go larger than 3?
                 if i == len(ATSpectrograph.FilterPosition)-2:
@@ -691,15 +689,15 @@ class CSC(salobj.ConfigurableCsc):
 
         # settingsApplied needs to publish the comma separated string
         filters_str = {'name': '', 'central_wavelength': '', 'focus_offset': ''}
-        for i, f in enumerate(self.model.filters):
+        for i, f in enumerate(self.model.filter_to_enum_mapping_dict):
             filters_str['name'] += str(f)
             filters_str['central_wavelength'] += str(config.filters['central_wavelength'][i])
             filters_str['focus_offset'] += str(config.filters['focus_offset'][i])
             # need to add comma, except for the last value
-            if i < len(self.model.filters) - 1:
+            if i < len(self.model.filter_to_enum_mapping_dict) - 1:
                 # loop over keys to add a comma for each
                 for key in filters_str:
-                    filters_str[key] += ', '
+                    filters_str[key] += ','
 
         gratings_str = {'name': '', 'focus_offset': ''}
         for i, f in enumerate(self.model.gratings):
@@ -707,9 +705,9 @@ class CSC(salobj.ConfigurableCsc):
             gratings_str['focus_offset'] += str(config.gratings['focus_offset'][i])
             # need to add comma, except for the last value
             if i < len(self.model.gratings) - 1:
-                # loop over keys to add a comma for each
+                # loop over keys to add a comma for each, do not add a space after the comma!
                 for key in gratings_str:
-                    gratings_str[key] += ', '
+                    gratings_str[key] += ','
 
         if hasattr(self, "evt_settingsAppliedValues"):
             self.evt_settingsAppliedValues.set_put(host=self.model.host,

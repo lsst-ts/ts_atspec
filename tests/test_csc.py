@@ -172,10 +172,13 @@ class TestATSpecCSC(asynctest.TestCase):
             for i, filter_name in enumerate(set_applied.filterNames.split(',')):
 
                 filter_id = i+1
-
+                print(f'filter_id is {filter_id}')
+                print(f'filter_name is {filter_name}')
                 with self.subTest(filter_name=filter_name):
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
+                    # try using filter_name but no id
+                    print(f'test_csc sending filter=0 and filter_name {filter_name}')
                     await harness.remote.cmd_changeFilter.set_start(filter=0,
                                                                     name=filter_name,
                                                                     timeout=LONG_TIMEOUT)
@@ -196,6 +199,7 @@ class TestATSpecCSC(asynctest.TestCase):
                 with self.subTest(filter_id=filter_id):
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
+                    print(f'test_csc sending filter=filter_id={filter_id} and no filter_name')
                     await harness.remote.cmd_changeFilter.set_start(filter=filter_id,
                                                                     timeout=LONG_TIMEOUT)
                     inpos1 = await harness.remote.evt_filterInPosition.next(
