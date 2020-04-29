@@ -174,6 +174,7 @@ class TestATSpecCSC(asynctest.TestCase):
                 filter_id = i+1
 
                 with self.subTest(filter_name=filter_name):
+                    print(f'testing filter = {filter_name}')
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
                     await harness.remote.cmd_changeFilter.set_start(filter=0,
@@ -185,6 +186,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     inpos2 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
                         timeout=BASE_TIMEOUT)
+                    # TODO: should I be flushing this, I think yes, otherwise the assertion below just uses
+                    #  the old value instead of not having a value
                     fpos = harness.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
@@ -192,11 +195,17 @@ class TestATSpecCSC(asynctest.TestCase):
                                      filter_name)
                     self.assertEqual(fpos.position,
                                      filter_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    self.assertEqual(fpos.centralWavelength,
+                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
+                    self.assertEqual(fpos.focusOffset,
+                                     float(set_applied.filterFocusOffsets.split(',')[i]))
 
                 with self.subTest(filter_id=filter_id):
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
-                    await harness.remote.cmd_changeFilter.set_start(filter=filter_id,
+
+                    await harness.remote.cmd_changeFilter.set_start(filter=filter_id, name='',
                                                                     timeout=LONG_TIMEOUT)
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
@@ -211,6 +220,11 @@ class TestATSpecCSC(asynctest.TestCase):
                                      filter_name)
                     self.assertEqual(fpos.position,
                                      filter_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    self.assertEqual(fpos.centralWavelength,
+                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
+                    self.assertEqual(fpos.focusOffset,
+                                     float(set_applied.filterFocusOffsets.split(',')[i]))
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 
