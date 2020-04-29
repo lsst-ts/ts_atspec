@@ -92,11 +92,16 @@ class TestATSpecCSC(asynctest.TestCase):
 
             # Check that settings applied was published
             if hasattr(harness.remote, "evt_settingsAppliedValues"):
-                await harness.remote.evt_settingsAppliedValues.next(flush=False,
-                                                                    timeout=BASE_TIMEOUT)
+                set_applied_values = await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                                         timeout=BASE_TIMEOUT)
+                print('set_applied_values')
+                print(set_applied_values)
+
             elif hasattr(harness.remote, "evt_settingsApplied"):
-                await harness.remote.evt_settingsApplied.next(flush=False,
-                                                              timeout=BASE_TIMEOUT)
+                set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
+                                                                            timeout=BASE_TIMEOUT)
+                print('set_applied')
+                print(set_applied)
 
             for bad_command in commands:
                 if bad_command in ("enable", "standby"):
@@ -152,10 +157,15 @@ class TestATSpecCSC(asynctest.TestCase):
                 set_applied = await harness.remote.evt_settingsAppliedValues.next(
                     flush=False,
                     timeout=BASE_TIMEOUT)
+                print(f'set_applied in if of test_changeFilter')
+                print(set_applied)
             elif hasattr(harness.remote, "evt_settingsApplied"):
                 set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
                                                                             timeout=BASE_TIMEOUT)
+                print(f'set_applied in elif of test_changeFilter')
+                print(set_applied)
             else:
+                print(f'No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
                 await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
                 return
 

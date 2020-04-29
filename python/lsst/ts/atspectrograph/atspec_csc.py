@@ -643,7 +643,7 @@ class CSC(salobj.ConfigurableCsc):
                 (len(config.filters['focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
             self.model.filters = dict()
             for i, f in enumerate(ATSpectrograph.FilterPosition):
-                print(self.model.filters)
+
                 self.model.filters[config.filters['name'][i]] = f
                 # Why do this? Appears enums can go larger than 3?
                 if i == len(ATSpectrograph.FilterPosition)-2:
@@ -667,10 +667,10 @@ class CSC(salobj.ConfigurableCsc):
         else:
             raise RuntimeError("Invalid grating name configuration. Expected "
                                f"{len(ATSpectrograph.DisperserPosition)} entries, got "
-                               f"{len(config.gratings)}")
+                               f"{len(config.gratings['name'])} for name,"
+                               f"{len(config.gratings['focus_offset'])} for focus_offset")
 
-        print(self.model.filters)
-        print(self.model.gratings)
+
         filters_str = ''
         for i, f in enumerate(self.model.filters):
             filters_str += str(f)
