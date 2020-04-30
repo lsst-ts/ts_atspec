@@ -92,16 +92,12 @@ class TestATSpecCSC(asynctest.TestCase):
 
             # Check that settings applied was published
             if hasattr(harness.remote, "evt_settingsAppliedValues"):
-                set_applied_values = await harness.remote.evt_settingsAppliedValues.next(flush=False,
-                                                                                         timeout=BASE_TIMEOUT)
-                print('set_applied_values')
-                print(set_applied_values)
+                await harness.remote.evt_settingsAppliedValues.next(flush=False,
+                                                                    timeout=BASE_TIMEOUT)
 
             elif hasattr(harness.remote, "evt_settingsApplied"):
-                set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                            timeout=BASE_TIMEOUT)
-                print('set_applied')
-                print(set_applied)
+                await harness.remote.evt_settingsApplied.next(flush=False,
+                                                              timeout=BASE_TIMEOUT)
 
             for bad_command in commands:
                 if bad_command in ("enable", "standby"):
@@ -121,6 +117,7 @@ class TestATSpecCSC(asynctest.TestCase):
             finally:
                 state = await harness.remote.evt_summaryState.next(flush=False,
                                                                    timeout=BASE_TIMEOUT)
+
             self.assertEqual(harness.csc.summary_state, salobj.State.ENABLED)
             self.assertEqual(state.summaryState, salobj.State.ENABLED)
 
@@ -157,13 +154,11 @@ class TestATSpecCSC(asynctest.TestCase):
                 set_applied = await harness.remote.evt_settingsAppliedValues.next(
                     flush=False,
                     timeout=BASE_TIMEOUT)
-                print(f'set_applied in if of test_changeFilter')
-                print(set_applied)
+
             elif hasattr(harness.remote, "evt_settingsApplied"):
                 set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
                                                                             timeout=BASE_TIMEOUT)
-                print(f'set_applied in elif of test_changeFilter')
-                print(set_applied)
+
             else:
                 print(f'No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
                 await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
@@ -174,20 +169,20 @@ class TestATSpecCSC(asynctest.TestCase):
                 filter_id = i+1
 
                 with self.subTest(filter_name=filter_name):
-                    print(f'testing filter = {filter_name}')
+
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
                     await harness.remote.cmd_changeFilter.set_start(filter=0,
                                                                     name=filter_name,
                                                                     timeout=LONG_TIMEOUT)
+                    # Verify the filter wheel goes out of position, then into position
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
                         timeout=BASE_TIMEOUT)
                     inpos2 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
                         timeout=BASE_TIMEOUT)
-                    # TODO: should I be flushing this, I think yes, otherwise the assertion below just uses
-                    #  the old value instead of not having a value
+
                     fpos = harness.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
@@ -268,6 +263,12 @@ class TestATSpecCSC(asynctest.TestCase):
                                      disperser_name)
                     self.assertEqual(dpos.position,
                                      disperser_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float is
+                    # converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
 
                 with self.subTest(disperser_id=disperser_id):
                     harness.remote.evt_reportedDisperserPosition.flush()
@@ -289,6 +290,13 @@ class TestATSpecCSC(asynctest.TestCase):
                                      disperser_name)
                     self.assertEqual(dpos.position,
                                      disperser_id)
+
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float
+                    # is converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 

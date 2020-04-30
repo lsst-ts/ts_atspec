@@ -115,7 +115,7 @@ class Model:
         self.controller_ready = False
 
         self.filter_to_enum_mapping_dict = dict()
-        self.gratings = dict()
+        self.gratings_to_enum_mapping_dict = dict()
 
         self.min_pos = 0
         self.max_pos = 10000
