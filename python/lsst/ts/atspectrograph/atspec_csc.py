@@ -127,11 +127,10 @@ class CSC(salobj.ConfigurableCsc):
             # Check/Report Filter Wheel position.
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
-            # TODO: this area needs documentation on why this state works as such.
+
             filter_name = str(list(self.model.filter_to_enum_mapping_dict.keys())[int(state[1])])
-            #print(f'filter_name is {filter_name}')
-
-
+            # remember that position is from 0-3 (see query_fw_status in model.py, but the enumerations
+            # goes from 1-4
             self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
                                                     name=filter_name,
                                                     centralWavelength=self.filter_info['filter_central_wavelength'][int(state[1])],
@@ -218,31 +217,6 @@ class CSC(salobj.ConfigurableCsc):
                     self.fault(code=GW_ERROR,
                                report=f"Grating wheel in error: {gw_state}")
                     break
-
-                # # Publish state of each component
-                # if ls_pstate is None or ls_pstate[0] != ls_state[0]:
-                #     self.evt_lsState.set_put(lsState=ls_state[0])
-                #
-                # if fw_pstate is None or fw_pstate[0] != fw_pstate[0]:
-                #     self.evt_fwState.set_put(fwState=fw_state[0])
-                #
-                # if gw_pstate is None or gw_pstate[0] != gw_state[0]:
-                #     self.evt_gwState.set_put(gwState=gw_state[0])
-                #
-                # # Publish position of each component
-                # # FIXME: Need to validate that *_state[1] can be converted to float and int
-                # if ls_pstate is None or ls_pstate[1] != ls_state[1]:
-                #     self.evt_reportedLinearStagePosition.set_put(reportedLinearStagePosition=float(ls_state[1]))
-                #
-                # if fw_pstate is None or fw_pstate[1] != fw_state[1]:
-                #     self.evt_reportedFilterPosition.set_put(reportedFilterPosition=int(fw_state[1]))
-                #
-                # if gw_pstate is None or gw_pstate[1] != gw_state[1]:
-                #     self.evt_reportedDisperserPosition.set_put(reportedDisperserPosition=int(gw_state[1]))
-                #
-                # ls_pstate = ls_state
-                # fw_pstate = fw_state
-                # gw_pstate = gw_state
 
                 await asyncio.sleep(salobj.base_csc.HEARTBEAT_INTERVAL)
             except Exception:
@@ -373,7 +347,8 @@ class CSC(salobj.ConfigurableCsc):
 
         await self.model.stop_all_motion(self.want_connection)
 
-        # TODO: Report new state and position
+        # TODO: Report new state and position since it will hold all previous information, however
+        # low priority since this has never actually been used.
 
     async def implement_simulation_mode(self, simulation_mode):
         """Implement going into or out of simulation mode.
@@ -489,7 +464,8 @@ class CSC(salobj.ConfigurableCsc):
                 # this will be for the linear stage only since it's the only topic with a position attribute
                 getattr(self, f"evt_{report}").set_put(position=p_state[1])
             else:
-                #TODO: doesn't this apply to both filter and disperser? why only reporting disperser?
+                # the INBETWEEN value is the same for both the filter and grating wheels, so just use the value
+                # from the disperser for both filter and grating, then we're not required to pass the enumeration
                 getattr(self, f"evt_{report}").set_put(
                     position=ATSpectrograph.DisperserPosition.INBETWEEN.value,
                     name=f'{ATSpectrograph.DisperserPosition.INBETWEEN!r}')
