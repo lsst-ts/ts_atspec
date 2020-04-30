@@ -268,6 +268,12 @@ class TestATSpecCSC(asynctest.TestCase):
                                      disperser_name)
                     self.assertEqual(dpos.position,
                                      disperser_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float is
+                    # converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
 
                 with self.subTest(disperser_id=disperser_id):
                     harness.remote.evt_reportedDisperserPosition.flush()
@@ -289,6 +295,13 @@ class TestATSpecCSC(asynctest.TestCase):
                                      disperser_name)
                     self.assertEqual(dpos.position,
                                      disperser_id)
+
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float
+                    # is converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 

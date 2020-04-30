@@ -145,16 +145,16 @@ class CSC(salobj.ConfigurableCsc):
             raise e
 
         try:
-            # Check/Report Grating Wheel position.
+            # Check/Report Grating/Disperser Wheel position.
             state = await self.model.query_gw_status(self.want_connection)
             self.log.debug(f"query_gw_status: {state}")
-            grating_name = str(list(self.model.gratings.keys())[int(state[1])])
+            grating_name = str(list(self.model.gratings_to_enum_mapping_dict.keys())[int(state[1])])
             self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
                                                        name=grating_name)
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
                        report=f"Cannot get information from model for "
-                              f"grating wheel.",
+                              f"grating/Disperser wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -267,15 +267,15 @@ class CSC(salobj.ConfigurableCsc):
                                f"Got disperser={data.disperser} and name={data.name}")
         elif data.disperser == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif data.disperser < 0 or data.disperser > len(self.model.gratings):
+        elif data.disperser < 0 or data.disperser > len(self.model.gratings_to_enum_mapping_dict):
             raise RuntimeError(f"Invalid filter id. Got {data.disperser}, must "
-                               f"be between 0 and {len(self.model.gratings)}")
+                               f"be between 0 and {len(self.model.gratings_to_enum_mapping_dict)}")
         elif data.disperser > 0:
             disperser_id = int(ATSpectrograph.DisperserPosition(data.disperser))
-            disperser_name = str(list(self.model.gratings.keys())[disperser_id-1])
+            disperser_name = str(list(self.model.gratings_to_enum_mapping_dict.keys())[disperser_id-1])
         else:
             disperser_name = data.name
-            disperser_id = int(self.model.gratings[data.name])
+            disperser_id = int(self.model.gratings_to_enum_mapping_dict[data.name])
 
         await self.move_element(query="query_gw_status",
                                 move="move_gw",
@@ -521,7 +521,9 @@ class CSC(salobj.ConfigurableCsc):
                                                                int(state[1])] )
                 elif report == "reportedDisperserPosition":
                     getattr(self, f"evt_{report}").set_put(position=state[1]+1,
-                                                           name=position_name)
+                                                           name=position_name,
+                                                           focusOffset=self.grating_info["grating_focus_offset"][
+                                                               int(state[1])])
                 else:
                     raise RuntimeError(f"Expected report = reportedLinearStagePosition, reportedFilterPosition or "
                                        f"reportedDisperserPosition, but got {report}")
@@ -665,6 +667,7 @@ class CSC(salobj.ConfigurableCsc):
                 (len(config.filters['filter_focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
             self.model.filter_to_enum_mapping_dict = dict()
             self.filter_info = config.filters
+            self.grating_info = config.gratings
 
             # create relationship between filter name and enumeration since either can be used as inputs
             for i, f in enumerate(ATSpectrograph.FilterPosition):
@@ -685,10 +688,10 @@ class CSC(salobj.ConfigurableCsc):
 
         # Verify configurations for gratings are populated correctly.
         # create dictionary mapping the name to the grating position
-        if len(config.gratings['name']) == len(ATSpectrograph.DisperserPosition)-1:
-            self.model.gratings = dict()
+        if len(config.gratings['grating_name']) == len(ATSpectrograph.DisperserPosition)-1:
+            self.model.gratings_to_enum_mapping_dict = dict()
             for i, g in enumerate(ATSpectrograph.DisperserPosition):
-                self.model.gratings[config.gratings['name'][i]] = g
+                self.model.gratings_to_enum_mapping_dict[config.gratings['grating_name'][i]] = g
                 if i == len(ATSpectrograph.DisperserPosition)-2:
                     break
         else:
@@ -696,8 +699,8 @@ class CSC(salobj.ConfigurableCsc):
             # to have the appropriate number of values
             raise RuntimeError("Invalid grating name configuration. Expected "
                                f"{len(ATSpectrograph.DisperserPosition)} entries, got "
-                               f"{len(config.gratings['name'])} for name,"
-                               f"{len(config.gratings['focus_offset'])} for focus_offset")
+                               f"{len(config.gratings['grating_name'])} for name,"
+                               f"{len(config.gratings['grating_focus_offset'])} for focus_offset")
 
 
         # settingsApplied needs to publish the comma separated string
@@ -712,12 +715,12 @@ class CSC(salobj.ConfigurableCsc):
                 for key in filters_str:
                     filters_str[key] += ','
 
-        gratings_str = {'name': '', 'focus_offset': ''}
-        for i, f in enumerate(self.model.gratings):
-            gratings_str['name'] += str(f)
-            gratings_str['focus_offset'] += str(config.gratings['focus_offset'][i])
+        gratings_str = {'grating_name': '', 'grating_focus_offset': ''}
+        for i, f in enumerate(self.model.gratings_to_enum_mapping_dict):
+            gratings_str['grating_name'] += str(f)
+            gratings_str['grating_focus_offset'] += str(config.gratings['grating_focus_offset'][i])
             # need to add comma, except for the last value
-            if i < len(self.model.gratings) - 1:
+            if i < len(self.model.gratings_to_enum_mapping_dict) - 1:
                 # loop over keys to add a comma for each, do not add a space after the comma!
                 for key in gratings_str:
                     gratings_str[key] += ','
@@ -731,8 +734,8 @@ class CSC(salobj.ConfigurableCsc):
                                                    filterNames=filters_str['filter_name'],
                                                    filterCentralWavelengths=filters_str['filter_central_wavelength'],
                                                    filterFocusOffsets=filters_str['filter_focus_offset'],
-                                                   gratingNames=gratings_str['name'],
-                                                   gratingFocusOffsets=gratings_str['focus_offset'],
+                                                   gratingNames=gratings_str['grating_name'],
+                                                   gratingFocusOffsets=gratings_str['grating_focus_offset'],
                                                    instrumentPort=config.instrument_port)
 
         elif hasattr(self, "evt_settingsApplied"):
@@ -744,8 +747,8 @@ class CSC(salobj.ConfigurableCsc):
                                              filterNames=filters_str['filter_name'],
                                              filterCentralWavelengths=filters_str['filter_central_wavelength'],
                                              filterFocusOffsets=filters_str['filter_focus_offset'],
-                                             gratingNames=gratings_str['name'],
-                                             gratingFocusOffsets=gratings_str['focus_offset'],
+                                             gratingNames=gratings_str['grating_name'],
+                                             gratingFocusOffsets=gratings_str['grating_focus_offset'],
                                              instrumentPort=config.instrument_port)
 
         else:
