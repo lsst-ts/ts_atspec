@@ -18,6 +18,8 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 index_gen = salobj.index_generator()
 
 logger = logging.getLogger()
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
 logger.level = logging.DEBUG
 
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")

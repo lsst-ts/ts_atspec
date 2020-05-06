@@ -128,13 +128,15 @@ class CSC(salobj.ConfigurableCsc):
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
 
-            filter_name = str(list(self.model.filter_to_enum_mapping_dict.keys())[int(state[1])])
+            filter_name = str(list(self.model.filter_to_enum_mapping.keys())[int(state[1])])
             # remember that position is from 0-3 (see query_fw_status in model.py, but the enumerations
             # goes from 1-4
-            self.evt_reportedFilterPosition.set_put(position=int(state[1])+1,
-                                                    name=filter_name,
-                                                    centralWavelength=self.filter_info['filter_central_wavelength'][int(state[1])],
-                                                    focusOffset=self.filter_info["filter_focus_offset"][int(state[1])])
+            self.evt_reportedFilterPosition.set_put(
+                position=int(state[1]) + 1,
+                name=filter_name,
+                centralWavelength=self.filter_info['filter_central_wavelength'][int(state[1])],
+                focusOffset=self.filter_info["filter_focus_offset"][int(state[1])]
+            )
 
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
@@ -147,13 +149,13 @@ class CSC(salobj.ConfigurableCsc):
             # Check/Report Grating/Disperser Wheel position.
             state = await self.model.query_gw_status(self.want_connection)
             self.log.debug(f"query_gw_status: {state}")
-            grating_name = str(list(self.model.gratings_to_enum_mapping_dict.keys())[int(state[1])])
+            grating_name = str(list(self.model.gratings_to_enum_mapping.keys())[int(state[1])])
             self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
                                                        name=grating_name)
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
                        report=f"Cannot get information from model for "
-                              f"grating/Disperser wheel.",
+                              f"grating/disperser wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -241,15 +243,15 @@ class CSC(salobj.ConfigurableCsc):
                                f"Got disperser={data.disperser} and name={data.name}")
         elif data.disperser == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif data.disperser < 0 or data.disperser > len(self.model.gratings_to_enum_mapping_dict):
+        elif data.disperser < 0 or data.disperser > len(self.model.gratings_to_enum_mapping):
             raise RuntimeError(f"Invalid filter id. Got {data.disperser}, must "
-                               f"be between 0 and {len(self.model.gratings_to_enum_mapping_dict)}")
+                               f"be between 0 and {len(self.model.gratings_to_enum_mapping)}")
         elif data.disperser > 0:
             disperser_id = int(ATSpectrograph.DisperserPosition(data.disperser))
-            disperser_name = str(list(self.model.gratings_to_enum_mapping_dict.keys())[disperser_id-1])
+            disperser_name = str(list(self.model.gratings_to_enum_mapping.keys())[disperser_id - 1])
         else:
             disperser_name = data.name
-            disperser_id = int(self.model.gratings_to_enum_mapping_dict[data.name])
+            disperser_id = int(self.model.gratings_to_enum_mapping[data.name])
 
         await self.move_element(query="query_gw_status",
                                 move="move_gw",
@@ -276,15 +278,15 @@ class CSC(salobj.ConfigurableCsc):
                                f"Got filter={data.filter} and name={data.name}")
         elif data.filter == 0 and len(data.name) == 0:
             raise RuntimeError(f"Neither filter id or name where specified.")
-        elif data.filter < 0 or data.filter > len(self.model.filter_to_enum_mapping_dict):
+        elif data.filter < 0 or data.filter > len(self.model.filter_to_enum_mapping):
             raise RuntimeError(f"Invalid filter id. Got {data.filter}, must "
-                               f"be between 0 and {len(self.model.filter_to_enum_mapping_dict)}")
+                               f"be between 0 and {len(self.model.filter_to_enum_mapping)}")
         elif data.filter > 0:
             filter_id = int(ATSpectrograph.FilterPosition(data.filter))
-            filter_name = str(list(self.model.filter_to_enum_mapping_dict.keys())[filter_id-1])
+            filter_name = str(list(self.model.filter_to_enum_mapping.keys())[filter_id - 1])
         else:
             filter_name = data.name
-            filter_id = int(self.model.filter_to_enum_mapping_dict[data.name])
+            filter_id = int(self.model.filter_to_enum_mapping[data.name])
 
         await self.move_element(query="query_fw_status",
                                 move="move_fw",
@@ -293,8 +295,6 @@ class CSC(salobj.ConfigurableCsc):
                                 inposition="filterInPosition",
                                 report_state="fwState",
                                 position_name=filter_name)
-
-
 
     async def do_homeLinearStage(self, data):
 
@@ -447,6 +447,12 @@ class CSC(salobj.ConfigurableCsc):
             Name of the specified position.
         """
 
+        # Verify this was called with an appropriate event
+        if report not in ["reportedLinearStagePosition", "reportedFilterPosition",
+                          "reportedDisperserPosition"]:
+            raise RuntimeError(f"Expected report = reportedLinearStagePosition, reportedFilterPosition or "
+                               f"reportedDisperserPosition, but got {report}")
+
         p_state = await getattr(self.model, query)(self.want_connection)
 
         moving_state = ATSpectrograph.Status.MOVING
@@ -464,8 +470,9 @@ class CSC(salobj.ConfigurableCsc):
                 # this will be for the linear stage only since it's the only topic with a position attribute
                 getattr(self, f"evt_{report}").set_put(position=p_state[1])
             else:
-                # the INBETWEEN value is the same for both the filter and grating wheels, so just use the value
-                # from the disperser for both filter and grating, then we're not required to pass the enumeration
+                # the INBETWEEN value is the same for both the filter and grating wheels,
+                # so just use the value from the disperser for both filter and grating,
+                # then we're not required to pass the enumeration
                 getattr(self, f"evt_{report}").set_put(
                     position=ATSpectrograph.DisperserPosition.INBETWEEN.value,
                     name=f'{ATSpectrograph.DisperserPosition.INBETWEEN!r}')
@@ -485,24 +492,27 @@ class CSC(salobj.ConfigurableCsc):
 
             if (state[0] == ATSpectrograph.Status.STATIONARY and
                     state[1]-position <= self.model.tolerance):
-                if report == "reportedLinearStagePosition":
-                    # this is for the linear stage only since it's the only topic with a position attribute
-                    getattr(self, f"evt_{report}").set_put(position=state[1])
-                elif report == "reportedFilterPosition":
-                    getattr(self, f"evt_{report}").set_put(position=state[1]+1,
-                                                           name=position_name,
-                                                           centralWavelength=
-                                                           self.filter_info['filter_central_wavelength'][state[1]],
-                                                           focusOffset=self.filter_info["filter_focus_offset"][
-                                                               int(state[1])] )
+
+                if report == "reportedFilterPosition":
+                    getattr(self, f"evt_{report}").set_put(
+                        position=state[1] + 1,
+                        name=position_name,
+                        centralWavelength=self.filter_info['filter_central_wavelength'][state[1]],
+                        focusOffset=self.filter_info["filter_focus_offset"][
+                            int(state[1])]
+                    )
                 elif report == "reportedDisperserPosition":
-                    getattr(self, f"evt_{report}").set_put(position=state[1]+1,
-                                                           name=position_name,
-                                                           focusOffset=self.grating_info["grating_focus_offset"][
-                                                               int(state[1])])
+                    getattr(self, f"evt_{report}").set_put(
+                        position=state[1] + 1,
+                        name=position_name,
+                        focusOffset=self.grating_info["grating_focus_offset"][
+                            int(state[1])]
+                    )
                 else:
-                    raise RuntimeError(f"Expected report = reportedLinearStagePosition, reportedFilterPosition or "
-                                       f"reportedDisperserPosition, but got {report}")
+                    # This is for reportedLinearStagePosition since it's
+                    # the only topic with a position attribute
+                    getattr(self, f"evt_{report}").set_put(position=state[1])
+
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
@@ -636,102 +646,84 @@ class CSC(salobj.ConfigurableCsc):
 
         self.model.tolerance = config.tolerance
 
-        # Verify configurations for filter_to_enum_mapping_dict are populated correctly.
+        # Verify configurations for filter_to_enum_mapping are populated correctly.
         # create dictionary mapping the name to the filter position
-        if (len(config.filters['filter_name']) == len(ATSpectrograph.FilterPosition) - 1)and \
-                (len(config.filters['filter_central_wavelength']) == len(ATSpectrograph.FilterPosition) - 1) and \
+        if (len(config.filters['filter_name']) == len(ATSpectrograph.FilterPosition) - 1) and \
+                (len(config.filters['filter_central_wavelength']) == len(
+                    ATSpectrograph.FilterPosition) - 1) and \
                 (len(config.filters['filter_focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
-            self.model.filter_to_enum_mapping_dict = dict()
+            self.model.filter_to_enum_mapping = dict()
             self.filter_info = config.filters
             self.grating_info = config.gratings
 
             # create relationship between filter name and enumeration since either can be used as inputs
             for i, f in enumerate(ATSpectrograph.FilterPosition):
-                self.model.filter_to_enum_mapping_dict[config.filters['filter_name'][i]] = f
+                self.model.filter_to_enum_mapping[config.filters['filter_name'][i]] = f
 
-                # Why do this? Appears enums can go larger than 3?
+                # This only takes the first 4 positions and trims off the "INBETWEEN"
                 if i == len(ATSpectrograph.FilterPosition)-2:
                     break
         else:
-            # This shouldn't be able to be called as the configuration file should have first been validated
-            # to have the appropriate number of values
-            raise RuntimeError(f"Invalid filter configuration. Need same number of values for all attributes. Expected "
-                               f"{len(ATSpectrograph.FilterPosition)} entries, got "
-                               f"{len(config.filters['filter_name'])} for name,"
-                               f"{len(config.filters['filter_central_wavelength'])} for filter_central_wavelength,"
-                               f"{len(config.filters['filter_focus_offset'])} for filter_focus_offset")
-
+            # In normal operations this should not happen as the configuration file
+            # should have first been validated to have the appropriate number of values
+            raise RuntimeError(
+                f"Invalid filter configuration. Need same number of values for all attributes. Expected "
+                f"{len(ATSpectrograph.FilterPosition)} entries, got "
+                f"{len(config.filters['filter_name'])} for name,"
+                f"{len(config.filters['filter_central_wavelength'])} for filter_central_wavelength,"
+                f"{len(config.filters['filter_focus_offset'])} for filter_focus_offset")
 
         # Verify configurations for gratings are populated correctly.
         # create dictionary mapping the name to the grating position
         if len(config.gratings['grating_name']) == len(ATSpectrograph.DisperserPosition)-1:
-            self.model.gratings_to_enum_mapping_dict = dict()
+            self.model.gratings_to_enum_mapping = dict()
             for i, g in enumerate(ATSpectrograph.DisperserPosition):
-                self.model.gratings_to_enum_mapping_dict[config.gratings['grating_name'][i]] = g
+                self.model.gratings_to_enum_mapping[config.gratings['grating_name'][i]] = g
                 if i == len(ATSpectrograph.DisperserPosition)-2:
                     break
         else:
-            # This shouldn't be able to be called as the configuration file should have first been validated
-            # to have the appropriate number of values
+            # In normal operations this should not happen as the configuration file
+            # should have first been validated to have the appropriate number of values
             raise RuntimeError("Invalid grating name configuration. Expected "
                                f"{len(ATSpectrograph.DisperserPosition)} entries, got "
                                f"{len(config.gratings['grating_name'])} for name,"
                                f"{len(config.gratings['grating_focus_offset'])} for focus_offset")
 
-
         # settingsApplied needs to publish the comma separated string
         filters_str = {'filter_name': '', 'filter_central_wavelength': '', 'filter_focus_offset': ''}
-        for i, f in enumerate(self.model.filter_to_enum_mapping_dict):
+        for i, f in enumerate(self.model.filter_to_enum_mapping):
             filters_str['filter_name'] += str(f)
             filters_str['filter_central_wavelength'] += str(config.filters['filter_central_wavelength'][i])
             filters_str['filter_focus_offset'] += str(config.filters['filter_focus_offset'][i])
             # need to add comma, except for the last value
-            if i < len(self.model.filter_to_enum_mapping_dict) - 1:
+            if i < len(self.model.filter_to_enum_mapping) - 1:
                 # loop over keys to add a comma for each
                 for key in filters_str:
                     filters_str[key] += ','
 
         gratings_str = {'grating_name': '', 'grating_focus_offset': ''}
-        for i, f in enumerate(self.model.gratings_to_enum_mapping_dict):
+        for i, f in enumerate(self.model.gratings_to_enum_mapping):
             gratings_str['grating_name'] += str(f)
             gratings_str['grating_focus_offset'] += str(config.gratings['grating_focus_offset'][i])
             # need to add comma, except for the last value
-            if i < len(self.model.gratings_to_enum_mapping_dict) - 1:
+            if i < len(self.model.gratings_to_enum_mapping) - 1:
                 # loop over keys to add a comma for each, do not add a space after the comma!
                 for key in gratings_str:
                     gratings_str[key] += ','
 
-        if hasattr(self, "evt_settingsAppliedValues"):
-            self.evt_settingsAppliedValues.set_put(host=self.model.host,
-                                                   port=self.model.port,
-                                                   linearStageMinPos=self.model.min_pos,
-                                                   linearStageMaxPos=self.model.max_pos,
-                                                   linearStageSpeed=0.,
-                                                   filterNames=filters_str['filter_name'],
-                                                   filterCentralWavelengths=filters_str['filter_central_wavelength'],
-                                                   filterFocusOffsets=filters_str['filter_focus_offset'],
-                                                   gratingNames=gratings_str['grating_name'],
-                                                   gratingFocusOffsets=gratings_str['grating_focus_offset'],
-                                                   instrumentPort=config.instrument_port)
-
-        elif hasattr(self, "evt_settingsApplied"):
-            self.evt_settingsApplied.set_put(host=self.model.host,
-                                             port=self.model.port,
-                                             linearStageMinPos=self.model.min_pos,
-                                             linearStageMaxPos=self.model.max_pos,
-                                             linearStageSpeed=0.,
-                                             filterNames=filters_str['filter_name'],
-                                             filterCentralWavelengths=filters_str['filter_central_wavelength'],
-                                             filterFocusOffsets=filters_str['filter_focus_offset'],
-                                             gratingNames=gratings_str['grating_name'],
-                                             gratingFocusOffsets=gratings_str['grating_focus_offset'],
-                                             instrumentPort=config.instrument_port)
-
-        else:
-            self.log.warning("No settingsApplied or settingsAppliedValues event.")
-            self.log.info(f"host:{self.model.host},port:{self.model.port},"
-                          f"filterNames:{filters_str},gratingNames:{gratings_str},"
-                          f"instrumentPort:{config.instrument_port}")
+        self.evt_settingsAppliedValues.set_put(
+            host=self.model.host,
+            port=self.model.port,
+            linearStageMinPos=self.model.min_pos,
+            linearStageMaxPos=self.model.max_pos,
+            linearStageSpeed=0.,
+            filterNames=filters_str['filter_name'],
+            filterCentralWavelengths=filters_str['filter_central_wavelength'],
+            filterFocusOffsets=filters_str['filter_focus_offset'],
+            gratingNames=gratings_str['grating_name'],
+            gratingFocusOffsets=gratings_str['grating_focus_offset'],
+            instrumentPort=config.instrument_port
+        )
 
     async def close(self):
         if self.mock_ctrl is not None:
