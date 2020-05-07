@@ -114,8 +114,8 @@ class Model:
         self.cmd_lock = asyncio.Lock()
         self.controller_ready = False
 
-        self.filters = dict()
-        self.gratings = dict()
+        self.filter_to_enum_mapping = dict()
+        self.gratings_to_enum_mapping = dict()
 
         self.min_pos = 0
         self.max_pos = 10000
