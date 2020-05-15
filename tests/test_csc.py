@@ -2,7 +2,6 @@ import sys
 import unittest
 import asynctest
 import asyncio
-import numpy as np
 import pathlib
 import logging
 
@@ -10,16 +9,14 @@ from lsst.ts import salobj
 
 from lsst.ts.atspectrograph import atspec_csc as csc
 
-np.random.seed(12)
-
 BASE_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
 index_gen = salobj.index_generator()
 
-logger = logging.getLogger()
-stream_handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(stream_handler)
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.propagate = True
 logger.level = logging.DEBUG
 
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
@@ -30,6 +27,10 @@ class Harness:
         salobj.test_utils.set_random_lsst_dds_domain()
         self.csc = csc.CSC(simulation_mode=simulation_mode)
         self.remote = salobj.Remote(self.csc.domain, "ATSpectrograph")
+
+        # set the debug level to be whatever is set above. Note that this statement *MUST* occur after
+        # the controllers are created
+        self.csc.log.level = logger.level
 
     async def __aenter__(self):
         await self.csc.start_task
@@ -197,8 +198,17 @@ class TestATSpecCSC(asynctest.TestCase):
                                      float(set_applied.filterCentralWavelengths.split(',')[i]))
                     self.assertEqual(fpos.focusOffset,
                                      float(set_applied.filterFocusOffsets.split(',')[i]))
+                    # pointingOffsets are arrays, but in set_applied it's a string of arrays
+                    # so these have to be split and converted
+                    for n, offset in enumerate(fpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.filterPointingOffsets.split('],')[i]
+                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        trimmed_pair = (pair.replace(']', '')).replace('[', '')
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(',')[n]))
 
                 with self.subTest(filter_id=filter_id):
+
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
 
@@ -222,6 +232,12 @@ class TestATSpecCSC(asynctest.TestCase):
                                      float(set_applied.filterCentralWavelengths.split(',')[i]))
                     self.assertEqual(fpos.focusOffset,
                                      float(set_applied.filterFocusOffsets.split(',')[i]))
+                    for n, offset in enumerate(fpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.filterPointingOffsets.split('],')[i]
+                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        trimmed_pair = (pair.replace(']', '')).replace('[', '')
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(',')[n]))
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 
@@ -268,9 +284,15 @@ class TestATSpecCSC(asynctest.TestCase):
                     # settingsApplied returns lists of floats, so have to set to the correct type
                     # position comes back with some numerical precision issue, looks like float is
                     # converted to double somewhere, so use almost equal
-                    np.testing.assert_allclose(dpos.focusOffset,
-                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
-                                               rtol=0.0, atol=1e-6)
+                    self.assertAlmostEqual(dpos.focusOffset,
+                                           float(set_applied.gratingFocusOffsets.split(',')[i]))
+
+                    for n, offset in enumerate(dpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.gratingPointingOffsets.split('],')[i]
+                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        trimmed_pair = (pair.replace(']', '')).replace('[', '')
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(',')[n]))
 
                 with self.subTest(disperser_id=disperser_id):
                     harness.remote.evt_reportedDisperserPosition.flush()
@@ -296,9 +318,15 @@ class TestATSpecCSC(asynctest.TestCase):
                     # settingsApplied returns lists of floats, so have to set to the correct type
                     # position comes back with some numerical precision issue, looks like float
                     # is converted to double somewhere, so use almost equal
-                    np.testing.assert_allclose(dpos.focusOffset,
-                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
-                                               rtol=0.0, atol=1e-6)
+                    self.assertAlmostEqual(dpos.focusOffset,
+                                           float(set_applied.gratingFocusOffsets.split(',')[i]))
+
+                    for n, offset in enumerate(dpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.gratingPointingOffsets.split('],')[i]
+                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        trimmed_pair = (pair.replace(']', '')).replace('[', '')
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(',')[n]))
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 
@@ -354,6 +382,6 @@ class TestATSpecCSC(asynctest.TestCase):
 if __name__ == '__main__':
 
     stream_handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(stream_handler)
+    # logger.addHandler(stream_handler)
 
     unittest.main()
