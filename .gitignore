@@ -1,3 +1,5 @@
 tests/pytest_session.txt
 tests/__pycache__/
 python/lsst/ts/atspectrograph/__pycache__/
+
+.vscode
