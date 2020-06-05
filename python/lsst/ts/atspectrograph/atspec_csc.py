@@ -117,8 +117,8 @@ class CSC(salobj.ConfigurableCsc):
                 self.evt_reportedLinearStagePosition.set_put(position=state[1])
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
-                       report=f"Cannot get information from model for "
-                              f"linear stage.",
+                       report="Cannot get information from model for "
+                              "linear stage.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -140,8 +140,8 @@ class CSC(salobj.ConfigurableCsc):
 
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
-                       report=f"Cannot get information from model for "
-                              f"filter wheel.",
+                       report="Cannot get information from model for "
+                              "filter wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -154,8 +154,8 @@ class CSC(salobj.ConfigurableCsc):
                                                        name=grating_name)
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
-                       report=f"Cannot get information from model for "
-                              f"grating/disperser wheel.",
+                       report="Cannot get information from model for "
+                              "grating/disperser wheel.",
                        traceback=traceback.format_exc())
             raise e
 
@@ -239,10 +239,10 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_move_allowed("changeDisperser")
 
         if data.disperser > 0 and len(data.name) > 0:
-            raise RuntimeError(f"Either disperser id or filter name must be selected. "
+            raise RuntimeError("Either disperser id or filter name must be selected. "
                                f"Got disperser={data.disperser} and name={data.name}")
         elif data.disperser == 0 and len(data.name) == 0:
-            raise RuntimeError(f"Neither filter id or name where specified.")
+            raise RuntimeError("Neither filter id or name where specified.")
         elif data.disperser < 0 or data.disperser > len(self.model.gratings_to_enum_mapping):
             raise RuntimeError(f"Invalid filter id. Got {data.disperser}, must "
                                f"be between 0 and {len(self.model.gratings_to_enum_mapping)}")
@@ -274,10 +274,10 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_move_allowed("changeFilter")
 
         if data.filter > 0 and len(data.name) > 0:
-            raise RuntimeError(f"Either filter id or filter name must be selected. "
+            raise RuntimeError("Either filter id or filter name must be selected. "
                                f"Got filter={data.filter} and name={data.name}")
         elif data.filter == 0 and len(data.name) == 0:
-            raise RuntimeError(f"Neither filter id or name where specified.")
+            raise RuntimeError("Neither filter id or name where specified.")
         elif data.filter < 0 or data.filter > len(self.model.filter_to_enum_mapping):
             raise RuntimeError(f"Invalid filter id. Got {data.filter}, must "
                                f"be between 0 and {len(self.model.filter_to_enum_mapping)}")
@@ -450,7 +450,7 @@ class CSC(salobj.ConfigurableCsc):
         # Verify this was called with an appropriate event
         if report not in ["reportedLinearStagePosition", "reportedFilterPosition",
                           "reportedDisperserPosition"]:
-            raise RuntimeError(f"Expected report = reportedLinearStagePosition, reportedFilterPosition or "
+            raise RuntimeError("Expected report = reportedLinearStagePosition, reportedFilterPosition or "
                                f"reportedDisperserPosition, but got {report}")
 
         p_state = await getattr(self.model, query)(self.want_connection)
@@ -516,7 +516,7 @@ class CSC(salobj.ConfigurableCsc):
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
-                raise TimeoutError(f"Change position timed out trying to move to "
+                raise TimeoutError("Change position timed out trying to move to "
                                    f"position {position}.")
 
             await asyncio.sleep(0.5)
@@ -598,7 +598,7 @@ class CSC(salobj.ConfigurableCsc):
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True, force_output=True)
                 break
             elif time.time()-start_time > self.model.move_timeout:
-                raise TimeoutError(f"Homing element failed...")
+                raise TimeoutError("Homing element failed...")
 
             await asyncio.sleep(0.1)
 
@@ -667,7 +667,7 @@ class CSC(salobj.ConfigurableCsc):
             # In normal operations this should not happen as the configuration file
             # should have first been validated to have the appropriate number of values
             raise RuntimeError(
-                f"Invalid filter configuration. Need same number of values for all attributes. Expected "
+                "Invalid filter configuration. Need same number of values for all attributes. Expected "
                 f"{len(ATSpectrograph.FilterPosition)} entries, got "
                 f"{len(config.filters['filter_name'])} for name,"
                 f"{len(config.filters['filter_central_wavelength'])} for filter_central_wavelength,"

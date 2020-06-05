@@ -83,7 +83,7 @@ class TestATSpecCSC(asynctest.TestCase):
                         await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
 
             # send start; new state is DISABLED
-            cmd_attr = getattr(harness.remote, f"cmd_start")
+            cmd_attr = getattr(harness.remote, "cmd_start")
             await asyncio.sleep(BASE_TIMEOUT)  # give time for event loop to run
             harness.remote.evt_summaryState.flush()
             await cmd_attr.start(timeout=120)  # this one can take longer to execute
@@ -110,7 +110,7 @@ class TestATSpecCSC(asynctest.TestCase):
                         await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
 
             # send enable; new state is ENABLED
-            cmd_attr = getattr(harness.remote, f"cmd_enable")
+            cmd_attr = getattr(harness.remote, "cmd_enable")
             await asyncio.sleep(BASE_TIMEOUT)  # give time for the event loop to run
             harness.remote.evt_summaryState.flush()
             try:
@@ -140,7 +140,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
             logger.debug("Disabling CSC...")
             # send disable; new state is DISABLED
-            cmd_attr = getattr(harness.remote, f"cmd_disable")
+            cmd_attr = getattr(harness.remote, "cmd_disable")
             # this CMD may take some time to complete
             await cmd_attr.start(cmd_attr.DataType(), timeout=LONG_TIMEOUT)
             self.assertEqual(harness.csc.summary_state, salobj.State.DISABLED)
@@ -162,7 +162,7 @@ class TestATSpecCSC(asynctest.TestCase):
                                                                             timeout=BASE_TIMEOUT)
 
             else:
-                print(f'No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
+                print('No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
                 await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
                 return
 

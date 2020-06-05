@@ -84,7 +84,7 @@ class MockSpectrographController:
         self.log.info("cmd_loop begins")
 
         # Write welcome message
-        writer.write(f"\r\nSpectrograph\r\n>".encode())
+        writer.write("\r\nSpectrograph\r\n>".encode())
         await writer.drain()
 
         while True:
