@@ -64,6 +64,15 @@ pipeline {
                 }
             }
         }
+        stage("Build and Upload documentation") {
+            steps {
+                script {
+                    sh """
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_atspectrograph -t saluser && package-docs build && ltd upload ts-atspectrograph --git-ref \${GIT_BRANCH} --dir doc/_build/html\"
+                    """
+                }
+            }
+        }
     }
     post {
         always {
