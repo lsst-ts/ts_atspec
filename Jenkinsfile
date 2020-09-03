@@ -32,7 +32,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd /home/saluser/repos/ && git clone https://github.com/lsst-ts/ts_config_latiss.git && cd /home/saluser/repos/ts_config_latiss && /home/saluser/.checkout_repo.sh \${work_branches} && eups declare -r . -t saluser\"
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd /home/saluser/repos/ts_config_latiss && /home/saluser/.checkout_repo.sh \${work_branches}\"
                     """
                 }
             }
@@ -60,6 +60,15 @@ pipeline {
                 script {
                     sh """
                     docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_atspectrograph -t saluser && pytest --junitxml=\${XML_REPORT}\"
+                    """
+                }
+            }
+        }
+        stage("Build and Upload documentation") {
+            steps {
+                script {
+                    sh """
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_atspectrograph -t saluser && scons && package-docs build && ltd upload --product ts-atspectrograph --git-ref \${GIT_BRANCH} --dir doc/_build/html\"
                     """
                 }
             }

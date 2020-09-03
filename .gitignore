@@ -1,0 +1,23 @@
+# SAL
+ospl-error.log
+ospl-info.log
+
+# Pytest
+pytest_session.txt
+.coverage
+.tests
+.pytest_cache
+config.log
+
+# sconsUtils
+.sconf_temp
+.sconsign.dblite
+bin
+
+# Python
+__pycache__
+.eggs
+version.py
+
+# IDE
+.vscode

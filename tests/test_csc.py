@@ -18,15 +18,17 @@ LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 index_gen = salobj.index_generator()
 
 logger = logging.getLogger()
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
 logger.level = logging.DEBUG
 
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
 class Harness:
-    def __init__(self, initial_simulation_mode=0):
+    def __init__(self, simulation_mode=0):
         salobj.test_utils.set_random_lsst_dds_domain()
-        self.csc = csc.CSC(initial_simulation_mode=initial_simulation_mode)
+        self.csc = csc.CSC(simulation_mode=simulation_mode)
         self.remote = salobj.Remote(self.csc.domain, "ATSpectrograph")
 
     async def __aenter__(self):
@@ -55,7 +57,7 @@ class TestATSpecCSC(asynctest.TestCase):
         * exitControl: STANDBY, FAULT to OFFLINE (quit)
         """
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             commands = ("start", "enable", "disable", "exitControl", "standby",
                         "changeDisperser", "changeFilter", "homeLinearStage",
@@ -81,7 +83,7 @@ class TestATSpecCSC(asynctest.TestCase):
                         await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
 
             # send start; new state is DISABLED
-            cmd_attr = getattr(harness.remote, f"cmd_start")
+            cmd_attr = getattr(harness.remote, "cmd_start")
             await asyncio.sleep(BASE_TIMEOUT)  # give time for event loop to run
             harness.remote.evt_summaryState.flush()
             await cmd_attr.start(timeout=120)  # this one can take longer to execute
@@ -94,6 +96,7 @@ class TestATSpecCSC(asynctest.TestCase):
             if hasattr(harness.remote, "evt_settingsAppliedValues"):
                 await harness.remote.evt_settingsAppliedValues.next(flush=False,
                                                                     timeout=BASE_TIMEOUT)
+
             elif hasattr(harness.remote, "evt_settingsApplied"):
                 await harness.remote.evt_settingsApplied.next(flush=False,
                                                               timeout=BASE_TIMEOUT)
@@ -107,7 +110,7 @@ class TestATSpecCSC(asynctest.TestCase):
                         await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
 
             # send enable; new state is ENABLED
-            cmd_attr = getattr(harness.remote, f"cmd_enable")
+            cmd_attr = getattr(harness.remote, "cmd_enable")
             await asyncio.sleep(BASE_TIMEOUT)  # give time for the event loop to run
             harness.remote.evt_summaryState.flush()
             try:
@@ -116,6 +119,7 @@ class TestATSpecCSC(asynctest.TestCase):
             finally:
                 state = await harness.remote.evt_summaryState.next(flush=False,
                                                                    timeout=BASE_TIMEOUT)
+
             self.assertEqual(harness.csc.summary_state, salobj.State.ENABLED)
             self.assertEqual(state.summaryState, salobj.State.ENABLED)
 
@@ -136,14 +140,14 @@ class TestATSpecCSC(asynctest.TestCase):
 
             logger.debug("Disabling CSC...")
             # send disable; new state is DISABLED
-            cmd_attr = getattr(harness.remote, f"cmd_disable")
+            cmd_attr = getattr(harness.remote, "cmd_disable")
             # this CMD may take some time to complete
             await cmd_attr.start(cmd_attr.DataType(), timeout=LONG_TIMEOUT)
             self.assertEqual(harness.csc.summary_state, salobj.State.DISABLED)
 
     async def test_changeFilter(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -152,10 +156,13 @@ class TestATSpecCSC(asynctest.TestCase):
                 set_applied = await harness.remote.evt_settingsAppliedValues.next(
                     flush=False,
                     timeout=BASE_TIMEOUT)
+
             elif hasattr(harness.remote, "evt_settingsApplied"):
                 set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
                                                                             timeout=BASE_TIMEOUT)
+
             else:
+                print('No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
                 await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
                 return
 
@@ -164,17 +171,20 @@ class TestATSpecCSC(asynctest.TestCase):
                 filter_id = i+1
 
                 with self.subTest(filter_name=filter_name):
+
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
                     await harness.remote.cmd_changeFilter.set_start(filter=0,
                                                                     name=filter_name,
                                                                     timeout=LONG_TIMEOUT)
+                    # Verify the filter wheel goes out of position, then into position
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
                         timeout=BASE_TIMEOUT)
                     inpos2 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
                         timeout=BASE_TIMEOUT)
+
                     fpos = harness.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
@@ -182,12 +192,17 @@ class TestATSpecCSC(asynctest.TestCase):
                                      filter_name)
                     self.assertEqual(fpos.position,
                                      filter_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    self.assertEqual(fpos.centralWavelength,
+                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
+                    self.assertEqual(fpos.focusOffset,
+                                     float(set_applied.filterFocusOffsets.split(',')[i]))
 
                 with self.subTest(filter_id=filter_id):
                     harness.remote.evt_reportedFilterPosition.flush()
                     harness.remote.evt_filterInPosition.flush()
-                    await harness.remote.cmd_changeFilter.set_start(filter=filter_id,
-                                                                    name='',
+
+                    await harness.remote.cmd_changeFilter.set_start(filter=filter_id, name='',
                                                                     timeout=LONG_TIMEOUT)
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False,
@@ -202,12 +217,17 @@ class TestATSpecCSC(asynctest.TestCase):
                                      filter_name)
                     self.assertEqual(fpos.position,
                                      filter_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    self.assertEqual(fpos.centralWavelength,
+                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
+                    self.assertEqual(fpos.focusOffset,
+                                     float(set_applied.filterFocusOffsets.split(',')[i]))
 
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 
     async def test_changeDisperser(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -245,6 +265,12 @@ class TestATSpecCSC(asynctest.TestCase):
                                      disperser_name)
                     self.assertEqual(dpos.position,
                                      disperser_id)
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float is
+                    # converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
 
                 with self.subTest(disperser_id=disperser_id):
                     harness.remote.evt_reportedDisperserPosition.flush()
@@ -267,11 +293,18 @@ class TestATSpecCSC(asynctest.TestCase):
                     self.assertEqual(dpos.position,
                                      disperser_id)
 
+                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # position comes back with some numerical precision issue, looks like float
+                    # is converted to double somewhere, so use almost equal
+                    np.testing.assert_allclose(dpos.focusOffset,
+                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
+                                               rtol=0.0, atol=1e-6)
+
             await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
 
     async def test_moveLinearStage(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 
@@ -297,7 +330,7 @@ class TestATSpecCSC(asynctest.TestCase):
 
     async def test_homeLinearStage(self):
 
-        async with Harness(initial_simulation_mode=1) as harness:
+        async with Harness(simulation_mode=1) as harness:
 
             await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
 

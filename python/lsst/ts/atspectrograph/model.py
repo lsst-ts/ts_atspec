@@ -114,8 +114,8 @@ class Model:
         self.cmd_lock = asyncio.Lock()
         self.controller_ready = False
 
-        self.filters = dict()
-        self.gratings = dict()
+        self.filter_to_enum_mapping = dict()
+        self.gratings_to_enum_mapping = dict()
 
         self.min_pos = 0
         self.max_pos = 10000
@@ -298,7 +298,7 @@ class Model:
         position : int
             current motor step position
         """
-        ret_val = await self.run_command(f"?GRP\r\n", want_connection=want_connection)
+        ret_val = await self.run_command("?GRP\r\n", want_connection=want_connection)
 
         return GratingWheelStepPosition().parse_status(self.check_return(ret_val))
 
@@ -320,7 +320,7 @@ class Model:
         position : int
             current motor step position
         """
-        ret_val = await self.run_command(f"?FWP\r\n", want_connection=want_connection)
+        ret_val = await self.run_command("?FWP\r\n", want_connection=want_connection)
 
         return FilterWheelStepPosition().parse_status(self.check_return(ret_val))
 
