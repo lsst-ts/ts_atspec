@@ -4,11 +4,19 @@
 Version History
 ===============
 
-.. At the time of writing the Version history/release notes are not yet standardized amongst CSCs.
-.. Until then, it is not expected that both a version history and a release_notes be maintained.
-.. It is expected that each CSC link to whatever method of tracking is being used for that CSC until standardization occurs.
-.. No new work should be required in order to complete this section.
-.. Below is an example of a version history format.
+v0.6.0
+------
+* Made compatible with ts_salobj 6 (and 5)
+
+v0.5.1
+------
+* Add setup.py, conda/meta.yaml and Jenkinsfile.conda to handle packaging.
+
+v0.5.0
+------
+* Add command-line argument to run the CSC in simulation mode.
+* Stop lower-case filtering filter and grating names.
+* Make CSC backwards compatible with ts_xml 4.1
 
 v0.4.1
 ------
