@@ -1,6 +1,6 @@
 {% set data= load_setup_py_data() %}
 package:
-  name: ts-atspec
+  name: "ts-atspec"
   version: {{ data.get('version') }}
 
 source:
@@ -22,8 +22,8 @@ test:
   requires:
     - ts-conda-build
     - ts-dds
-    - ts-idl
-    - ts-salobj
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
   source_files:
     - python
     - bin.src
