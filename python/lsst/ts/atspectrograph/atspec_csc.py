@@ -131,13 +131,16 @@ class CSC(salobj.ConfigurableCsc):
             filter_name = str(list(self.model.filter_to_enum_mapping.keys())[int(state[1])])
             # remember that position is from 0-3 (see query_fw_status in model.py, but the enumerations
             # goes from 1-4
+
             self.evt_reportedFilterPosition.set_put(
                 position=int(state[1]) + 1,
                 name=filter_name,
-                centralWavelength=self.filter_info['filter_central_wavelength'][int(state[1])],
-                focusOffset=self.filter_info["filter_focus_offset"][int(state[1])]
+                centralWavelength=self.filter_info['central_wavelength_filter'][int(state[1])],
+                focusOffset=self.filter_info["offset_focus_filter"][int(state[1])],
+                pointingOffsets=[self.filter_info['offset_pointing_filter']['x'][int(state[1])],
+                                 self.filter_info['offset_pointing_filter']['y'][int(state[1])]]
             )
-
+            self.log.debug('sent evt_reportedFilterPosition in end_enable')
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
                        report="Cannot get information from model for "
@@ -150,8 +153,15 @@ class CSC(salobj.ConfigurableCsc):
             state = await self.model.query_gw_status(self.want_connection)
             self.log.debug(f"query_gw_status: {state}")
             grating_name = str(list(self.model.gratings_to_enum_mapping.keys())[int(state[1])])
-            self.evt_reportedDisperserPosition.set_put(position=int(state[1])+1,
-                                                       name=grating_name)
+            self.evt_reportedDisperserPosition.set_put(
+                position=int(state[1])+1,
+                name=grating_name,
+                pointingOffsets=[self.grating_info['offset_pointing_grating']['x'][int(state[1])],
+                                 self.grating_info['offset_pointing_grating']['y'][int(state[1])]]
+
+            )
+            self.log.debug('sent evt_reportedDisperserPosition in end_enable')
+
         except Exception as e:
             self.fault(code=CONNECTION_ERROR,
                        report="Cannot get information from model for "
@@ -497,16 +507,20 @@ class CSC(salobj.ConfigurableCsc):
                     getattr(self, f"evt_{report}").set_put(
                         position=state[1] + 1,
                         name=position_name,
-                        centralWavelength=self.filter_info['filter_central_wavelength'][state[1]],
-                        focusOffset=self.filter_info["filter_focus_offset"][
-                            int(state[1])]
+                        centralWavelength=self.filter_info['central_wavelength_filter'][state[1]],
+                        focusOffset=self.filter_info["offset_focus_filter"][
+                            int(state[1])],
+                        pointingOffsets=[self.filter_info['offset_pointing_filter']['x'][int(state[1])],
+                                         self.filter_info['offset_pointing_filter']['y'][int(state[1])]]
                     )
                 elif report == "reportedDisperserPosition":
                     getattr(self, f"evt_{report}").set_put(
                         position=state[1] + 1,
                         name=position_name,
-                        focusOffset=self.grating_info["grating_focus_offset"][
-                            int(state[1])]
+                        focusOffset=self.grating_info["offset_focus_grating"][
+                            int(state[1])],
+                        pointingOffsets=[self.grating_info['offset_pointing_grating']['x'][int(state[1])],
+                                         self.grating_info['offset_pointing_grating']['y'][int(state[1])]]
                     )
                 else:
                     # This is for reportedLinearStagePosition since it's
@@ -649,9 +663,9 @@ class CSC(salobj.ConfigurableCsc):
         # Verify configurations for filter_to_enum_mapping are populated correctly.
         # create dictionary mapping the name to the filter position
         if (len(config.filters['filter_name']) == len(ATSpectrograph.FilterPosition) - 1) and \
-                (len(config.filters['filter_central_wavelength']) == len(
+                (len(config.filters['central_wavelength_filter']) == len(
                     ATSpectrograph.FilterPosition) - 1) and \
-                (len(config.filters['filter_focus_offset']) == len(ATSpectrograph.FilterPosition) - 1):
+                (len(config.filters['offset_focus_filter']) == len(ATSpectrograph.FilterPosition) - 1):
             self.model.filter_to_enum_mapping = dict()
             self.filter_info = config.filters
             self.grating_info = config.gratings
@@ -670,8 +684,8 @@ class CSC(salobj.ConfigurableCsc):
                 "Invalid filter configuration. Need same number of values for all attributes. Expected "
                 f"{len(ATSpectrograph.FilterPosition)} entries, got "
                 f"{len(config.filters['filter_name'])} for name,"
-                f"{len(config.filters['filter_central_wavelength'])} for filter_central_wavelength,"
-                f"{len(config.filters['filter_focus_offset'])} for filter_focus_offset")
+                f"{len(config.filters['central_wavelength_filter'])} for central_wavelength_filter,"
+                f"{len(config.filters['offset_focus_filter'])} for offset_focus_filter")
 
         # Verify configurations for gratings are populated correctly.
         # create dictionary mapping the name to the grating position
@@ -687,24 +701,34 @@ class CSC(salobj.ConfigurableCsc):
             raise RuntimeError("Invalid grating name configuration. Expected "
                                f"{len(ATSpectrograph.DisperserPosition)} entries, got "
                                f"{len(config.gratings['grating_name'])} for name,"
-                               f"{len(config.gratings['grating_focus_offset'])} for focus_offset")
+                               f"{len(config.gratings['offset_focus_grating'])} for focus_offset")
 
         # settingsApplied needs to publish the comma separated string
-        filters_str = {'filter_name': '', 'filter_central_wavelength': '', 'filter_focus_offset': ''}
+        filters_str = {'filter_name': '', 'central_wavelength_filter': '',
+                       'offset_focus_filter': '', 'offset_pointing_filter': ''}
+
+        self.log.debug(f"filter pointing {config.filters['offset_pointing_filter']}")
         for i, f in enumerate(self.model.filter_to_enum_mapping):
             filters_str['filter_name'] += str(f)
-            filters_str['filter_central_wavelength'] += str(config.filters['filter_central_wavelength'][i])
-            filters_str['filter_focus_offset'] += str(config.filters['filter_focus_offset'][i])
+            filters_str['central_wavelength_filter'] += str(config.filters['central_wavelength_filter'][i])
+            filters_str['offset_focus_filter'] += str(config.filters['offset_focus_filter'][i])
+            filters_str['offset_pointing_filter'] += '[' + str(
+                (config.filters['offset_pointing_filter'])['x'][i]) + ',' + str(
+                (config.filters['offset_pointing_filter'])['y'][i]) + ']'
             # need to add comma, except for the last value
             if i < len(self.model.filter_to_enum_mapping) - 1:
                 # loop over keys to add a comma for each
                 for key in filters_str:
                     filters_str[key] += ','
 
-        gratings_str = {'grating_name': '', 'grating_focus_offset': ''}
+        gratings_str = {'grating_name': '', 'offset_focus_grating': '', 'offset_pointing_grating': ''}
         for i, f in enumerate(self.model.gratings_to_enum_mapping):
             gratings_str['grating_name'] += str(f)
-            gratings_str['grating_focus_offset'] += str(config.gratings['grating_focus_offset'][i])
+            gratings_str['offset_focus_grating'] += str(config.gratings['offset_focus_grating'][i])
+            gratings_str['offset_pointing_grating'] += '[' + str(
+                (config.gratings['offset_pointing_grating'])['x'][i]) + ',' + str(
+                (config.gratings['offset_pointing_grating'])['y'][i]) + ']'
+
             # need to add comma, except for the last value
             if i < len(self.model.gratings_to_enum_mapping) - 1:
                 # loop over keys to add a comma for each, do not add a space after the comma!
@@ -718,10 +742,12 @@ class CSC(salobj.ConfigurableCsc):
             linearStageMaxPos=self.model.max_pos,
             linearStageSpeed=0.,
             filterNames=filters_str['filter_name'],
-            filterCentralWavelengths=filters_str['filter_central_wavelength'],
-            filterFocusOffsets=filters_str['filter_focus_offset'],
+            filterCentralWavelengths=filters_str['central_wavelength_filter'],
+            filterFocusOffsets=filters_str['offset_focus_filter'],
+            filterPointingOffsets=filters_str['offset_pointing_filter'],
             gratingNames=gratings_str['grating_name'],
-            gratingFocusOffsets=gratings_str['grating_focus_offset'],
+            gratingFocusOffsets=gratings_str['offset_focus_grating'],
+            gratingPointingOffsets=gratings_str['offset_pointing_grating'],
             instrumentPort=config.instrument_port
         )
 

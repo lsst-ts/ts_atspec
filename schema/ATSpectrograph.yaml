@@ -47,7 +47,7 @@ properties:
         minItems: 4
         maxItems: 4
 
-      filter_central_wavelength:
+      central_wavelength_filter:
         description: >
           Wavelength for which optical system will be opimized in units of nm. Approximations are sufficient as the
           focus dependence on wavelength is weak.
@@ -62,7 +62,7 @@ properties:
           - 702
           - 703
 
-      filter_focus_offset:
+      offset_focus_filter:
         description: >
           Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
           Positive values push the secondary down and increase the back focal distance, therefore adding glass
@@ -78,6 +78,40 @@ properties:
           - 1.0
           - 2.0
           - 3.0
+      offset_pointing_filter:
+        description: >
+          Pointing offset to be applied to the telescope in units of arcseconds, relative to no glass being installed.
+          Relative to the center of the detector, positive Y-values result in the star moving up an amplifier,
+          positive X-values result in moving along rows, to higher pixel values.
+        type: object
+        properties:
+          x:
+            type: array
+            uniqueItems: false
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+            default:
+              - 0.3
+              - 0.2
+              - 0.1
+              - 0.0
+            description: X-offset in arcseconds.
+          y:
+            type: array
+            uniqueItems: false
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+            default:
+              - 0.0
+              - 0.1
+              - 0.2
+              - 0.3
+            description: Y-offset in arcseconds.
+
 
   gratings:
     type: object
@@ -95,7 +129,7 @@ properties:
           type: string
         minItems: 4
         maxItems: 4
-      grating_focus_offset:
+      offset_focus_grating:
         description: >
           Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
           Positive values push the secondary down and increase the back focal distance, therefore adding glass
@@ -111,5 +145,39 @@ properties:
           - 1.1
           - 2.2
           - 3.3
+      offset_pointing_grating:
+        description: >
+          Pointing offset to be applied to the telescope in units of arcseconds, relative to no glass being installed.
+          Relative to the center of the detector, positive Y-values result in the star moving up an amplifier,
+          positive X-values result in moving along rows, to higher pixel values.
+        type: object
+        properties:
+          x:
+            type: array
+            uniqueItems: false
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+            default:
+              - 0.3
+              - 0.2
+              - 0.1
+              - 0.0
+            description: X-offset in arcseconds.
+          y:
+            type: array
+            uniqueItems: false
+            items:
+              type: number
+            minItems: 4
+            maxItems: 4
+            default:
+              - 0.0
+              - 0.1
+              - 0.2
+              - 0.3
+            description: Y-offset in arcseconds.
+
 
 additionalProperties: false
