@@ -4,6 +4,17 @@
 Version History
 ===============
 
+v0.7.0
+------
+* Implement compatibility with xml 7.0.0.
+* Modernize unit tests to use ``salobj.BaseCscTestCase`` facility.
+* Reformat code with black 19.0.
+* Update code formatting options.
+* User ``ts-conda-build`` as a test dependency for building conda package.
+* Fix small issue in Jenkinsfile that would run ``scons`` before building docs.
+* Disable concurrent builds in Jenkinsfile.
+* Use ``CSC_Conda_Node`` node to build conda package.
+
 v0.6.0
 ------
 * Made compatible with ts_salobj 6 (and 5)
