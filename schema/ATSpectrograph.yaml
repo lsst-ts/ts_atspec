@@ -38,15 +38,26 @@ properties:
         default:
           - empty_1
           - empty_2
-          - diffuser
           - empty_3
+          - empty_4
         type: array
         uniqueItems: true
         items:
           type: string
         minItems: 4
         maxItems: 4
-
+      band:
+        decription: Descriptive bandpass associated with the filter in the beam (e.g. u,g,r,i,z,y).
+        default:
+          - Empty
+          - Empty
+          - Empty
+          - Empty
+        type: array
+        items:
+          type: string
+        minItems: 4
+        maxItems: 4
       central_wavelength_filter:
         description: >
           Wavelength for which optical system will be opimized in units of nm. Approximations are sufficient as the
@@ -61,7 +72,6 @@ properties:
           - 701
           - 702
           - 703
-
       offset_focus_filter:
         description: >
           Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
@@ -125,6 +135,18 @@ properties:
           - holo_etu1
         type: array
         uniqueItems: true
+        items:
+          type: string
+        minItems: 4
+        maxItems: 4
+      band:
+        decription: Descriptive name associated with the grating/disperser in the beam (e.g. R100).
+        default:
+          - Empty
+          - Empty
+          - Empty
+          - Empty
+        type: array
         items:
           type: string
         minItems: 4

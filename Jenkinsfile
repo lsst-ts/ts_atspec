@@ -1,3 +1,15 @@
+properties(
+    [
+    buildDiscarder
+        (logRotator (
+            artifactDaysToKeepStr: '',
+            artifactNumToKeepStr: '',
+            daysToKeepStr: '14',
+            numToKeepStr: '10'
+        ) ),
+    disableConcurrentBuilds()
+    ]
+)
 pipeline {
     agent any
     environment {
@@ -68,7 +80,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && setup ts_atspectrograph -t saluser && scons && package-docs build && ltd upload --product ts-atspectrograph --git-ref \${GIT_BRANCH} --dir doc/_build/html\"
+                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && pip install --no-deps --ignore-installed -e . && package-docs build && ltd upload --product ts-atspectrograph --git-ref \${GIT_BRANCH} --dir doc/_build/html\"
                     """
                 }
             }
