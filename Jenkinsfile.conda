@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'CSC_Conda_Node'}
     environment {
         package_name = "atspec"
         package_version = sh(returnStdout: true, script: "git describe --tags --always --dirty").trim()

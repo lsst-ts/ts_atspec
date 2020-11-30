@@ -1,46 +1,25 @@
-import sys
-import unittest
-import asynctest
 import asyncio
-import numpy as np
+import asynctest
 import pathlib
-import logging
+import unittest
 
 from lsst.ts import salobj
 
-from lsst.ts.atspectrograph import atspec_csc as csc
-
-np.random.seed(12)
+from lsst.ts.atspectrograph.atspec_csc import CSC
 
 BASE_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
 
-index_gen = salobj.index_generator()
-
-logger = logging.getLogger()
-stream_handler = logging.StreamHandler(sys.stdout)
-logger.addHandler(stream_handler)
-logger.level = logging.DEBUG
-
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
-class Harness:
-    def __init__(self, simulation_mode=0):
-        salobj.test_utils.set_random_lsst_dds_domain()
-        self.csc = csc.CSC(simulation_mode=simulation_mode)
-        self.remote = salobj.Remote(self.csc.domain, "ATSpectrograph")
-
-    async def __aenter__(self):
-        await self.csc.start_task
-        await self.remote.start_task
-        return self
-
-    async def __aexit__(self, *args):
-        await self.csc.close()
-
-
-class TestATSpecCSC(asynctest.TestCase):
+class TestATSpecCSC(salobj.BaseCscTestCase, asynctest.TestCase):
+    def basic_make_csc(self, initial_state, config_dir, simulation_mode):
+        return CSC(
+            initial_state=initial_state,
+            config_dir=config_dir,
+            simulation_mode=simulation_mode,
+        )
 
     async def test_standard_state_transitions(self):
         """Test standard CSC state transitions.
@@ -56,304 +35,408 @@ class TestATSpecCSC(asynctest.TestCase):
         * standby: DISABLED to STANDBY
         * exitControl: STANDBY, FAULT to OFFLINE (quit)
         """
-
-        async with Harness(simulation_mode=1) as harness:
-
-            commands = ("start", "enable", "disable", "exitControl", "standby",
-                        "changeDisperser", "changeFilter", "homeLinearStage",
-                        "moveLinearStage", "stopAllAxes")
-
-            # Check initial state
-            current_state = await harness.remote.evt_summaryState.next(flush=False,
-                                                                       timeout=BASE_TIMEOUT)
-
-            self.assertEqual(harness.csc.summary_state, salobj.State.STANDBY)
-            self.assertEqual(current_state.summaryState, salobj.State.STANDBY)
-
-            # Check that settingVersions was published
-            await harness.remote.evt_settingVersions.next(flush=False,
-                                                          timeout=BASE_TIMEOUT)
-
-            for bad_command in commands:
-                if bad_command in ("start", "exitControl"):
-                    continue  # valid command in STANDBY state
-                with self.subTest(bad_command=bad_command):
-                    cmd_attr = getattr(harness.remote, f"cmd_{bad_command}")
-                    with self.assertRaises(salobj.AckError):
-                        await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
-
-            # send start; new state is DISABLED
-            cmd_attr = getattr(harness.remote, "cmd_start")
-            await asyncio.sleep(BASE_TIMEOUT)  # give time for event loop to run
-            harness.remote.evt_summaryState.flush()
-            await cmd_attr.start(timeout=120)  # this one can take longer to execute
-            state = await harness.remote.evt_summaryState.next(flush=False,
-                                                               timeout=BASE_TIMEOUT)
-            self.assertEqual(harness.csc.summary_state, salobj.State.DISABLED)
-            self.assertEqual(state.summaryState, salobj.State.DISABLED)
-
-            # Check that settings applied was published
-            if hasattr(harness.remote, "evt_settingsAppliedValues"):
-                await harness.remote.evt_settingsAppliedValues.next(flush=False,
-                                                                    timeout=BASE_TIMEOUT)
-
-            elif hasattr(harness.remote, "evt_settingsApplied"):
-                await harness.remote.evt_settingsApplied.next(flush=False,
-                                                              timeout=BASE_TIMEOUT)
-
-            for bad_command in commands:
-                if bad_command in ("enable", "standby"):
-                    continue  # valid command in DISABLED state
-                with self.subTest(bad_command=bad_command):
-                    cmd_attr = getattr(harness.remote, f"cmd_{bad_command}")
-                    with self.assertRaises(salobj.AckError):
-                        await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
-
-            # send enable; new state is ENABLED
-            cmd_attr = getattr(harness.remote, "cmd_enable")
-            await asyncio.sleep(BASE_TIMEOUT)  # give time for the event loop to run
-            harness.remote.evt_summaryState.flush()
-            try:
-                # enable may take some time to complete
-                await cmd_attr.start(cmd_attr.DataType(), timeout=120.)
-            finally:
-                state = await harness.remote.evt_summaryState.next(flush=False,
-                                                                   timeout=BASE_TIMEOUT)
-
-            self.assertEqual(harness.csc.summary_state, salobj.State.ENABLED)
-            self.assertEqual(state.summaryState, salobj.State.ENABLED)
-
-            # check that position was published
-            await harness.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
-            await harness.remote.evt_reportedFilterPosition.aget(timeout=BASE_TIMEOUT)
-            await harness.remote.evt_reportedDisperserPosition.aget(timeout=BASE_TIMEOUT)
-
-            for bad_command in commands:
-                if bad_command in ("disable", "changeDisperser", "changeFilter",
-                                   "homeLinearStage", "moveLinearStage", "stopAllAxes"):
-                    continue  # valid command in ENABLE state
-                logger.debug(f"Testing {bad_command}")
-                with self.subTest(bad_command=bad_command):
-                    cmd_attr = getattr(harness.remote, f"cmd_{bad_command}")
-                    with self.assertRaises(salobj.AckError):
-                        await cmd_attr.start(cmd_attr.DataType(), timeout=BASE_TIMEOUT)
-
-            logger.debug("Disabling CSC...")
-            # send disable; new state is DISABLED
-            cmd_attr = getattr(harness.remote, "cmd_disable")
-            # this CMD may take some time to complete
-            await cmd_attr.start(cmd_attr.DataType(), timeout=LONG_TIMEOUT)
-            self.assertEqual(harness.csc.summary_state, salobj.State.DISABLED)
+        async with self.make_csc(
+            initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=1
+        ):
+            await self.check_standard_state_transitions(
+                enabled_commands=(
+                    "changeDisperser",
+                    "changeFilter",
+                    "homeLinearStage",
+                    "moveLinearStage",
+                    "stopAllAxes",
+                ),
+            )
 
     async def test_changeFilter(self):
 
-        async with Harness(simulation_mode=1) as harness:
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
+        ):
 
-            await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
+            set_applied = await self.remote.evt_settingsAppliedValues.aget(
+                timeout=BASE_TIMEOUT
+            )
 
-            set_applied = None
-            if hasattr(harness.remote, "evt_settingsAppliedValues"):
-                set_applied = await harness.remote.evt_settingsAppliedValues.next(
-                    flush=False,
-                    timeout=BASE_TIMEOUT)
+            for i, filter_name in enumerate(set_applied.filterNames.split(",")):
 
-            elif hasattr(harness.remote, "evt_settingsApplied"):
-                set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                            timeout=BASE_TIMEOUT)
-
-            else:
-                print('No evt_settingsApplied or evt_settingsAppliedValues published in test_changeFilter')
-                await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
-                return
-
-            for i, filter_name in enumerate(set_applied.filterNames.split(',')):
-
-                filter_id = i+1
+                filter_id = i
 
                 with self.subTest(filter_name=filter_name):
 
-                    harness.remote.evt_reportedFilterPosition.flush()
-                    harness.remote.evt_filterInPosition.flush()
-                    await harness.remote.cmd_changeFilter.set_start(filter=0,
-                                                                    name=filter_name,
-                                                                    timeout=LONG_TIMEOUT)
-                    # Verify the filter wheel goes out of position, then into position
-                    inpos1 = await harness.remote.evt_filterInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    inpos2 = await harness.remote.evt_filterInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
+                    self.remote.evt_reportedFilterPosition.flush()
+                    self.remote.evt_filterInPosition.flush()
+                    await self.remote.cmd_changeFilter.set_start(
+                        filter=0, name=filter_name, timeout=LONG_TIMEOUT
+                    )
+                    # Verify the filter wheel goes out of position, then into
+                    # position
+                    inpos1 = await self.remote.evt_filterInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    inpos2 = await self.remote.evt_filterInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
 
-                    fpos = harness.remote.evt_reportedFilterPosition.get()
+                    fpos = self.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(fpos.name,
-                                     filter_name)
-                    self.assertEqual(fpos.position,
-                                     filter_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    self.assertEqual(fpos.centralWavelength,
-                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
-                    self.assertEqual(fpos.focusOffset,
-                                     float(set_applied.filterFocusOffsets.split(',')[i]))
+                    self.assertEqual(fpos.name, filter_name)
+                    self.assertEqual(fpos.slot, filter_id)
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type
+                    self.assertEqual(
+                        fpos.centralWavelength,
+                        float(set_applied.filterCentralWavelengths.split(",")[i]),
+                    )
+                    self.assertEqual(
+                        fpos.focusOffset,
+                        float(set_applied.filterFocusOffsets.split(",")[i]),
+                    )
+                    # pointingOffsets are arrays, but in set_applied it's a
+                    # string of arrays so these have to be split and converted
+                    for n, offset in enumerate(fpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.filterPointingOffsets.split("],")[i]
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
+                        trimmed_pair = (pair.replace("]", "")).replace("[", "")
+                        self.assertAlmostEqual(
+                            offset, float(trimmed_pair.split(",")[n])
+                        )
 
                 with self.subTest(filter_id=filter_id):
-                    harness.remote.evt_reportedFilterPosition.flush()
-                    harness.remote.evt_filterInPosition.flush()
 
-                    await harness.remote.cmd_changeFilter.set_start(filter=filter_id, name='',
-                                                                    timeout=LONG_TIMEOUT)
-                    inpos1 = await harness.remote.evt_filterInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    inpos2 = await harness.remote.evt_filterInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    fpos = harness.remote.evt_reportedFilterPosition.get()
+                    self.remote.evt_reportedFilterPosition.flush()
+                    self.remote.evt_filterInPosition.flush()
+
+                    await self.remote.cmd_changeFilter.set_start(
+                        filter=filter_id, name="", timeout=LONG_TIMEOUT
+                    )
+                    inpos1 = await self.remote.evt_filterInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    inpos2 = await self.remote.evt_filterInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    fpos = self.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(fpos.name,
-                                     filter_name)
-                    self.assertEqual(fpos.position,
-                                     filter_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    self.assertEqual(fpos.centralWavelength,
-                                     float(set_applied.filterCentralWavelengths.split(',')[i]))
-                    self.assertEqual(fpos.focusOffset,
-                                     float(set_applied.filterFocusOffsets.split(',')[i]))
+                    self.assertEqual(fpos.name, filter_name)
+                    self.assertEqual(fpos.slot, filter_id)
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type
+                    self.assertEqual(
+                        fpos.centralWavelength,
+                        float(set_applied.filterCentralWavelengths.split(",")[i]),
+                    )
+                    self.assertEqual(
+                        fpos.focusOffset,
+                        float(set_applied.filterFocusOffsets.split(",")[i]),
+                    )
+                    for n, offset in enumerate(fpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.filterPointingOffsets.split("],")[i]
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
+                        trimmed_pair = (pair.replace("]", "")).replace("[", "")
+                        self.assertAlmostEqual(
+                            offset, float(trimmed_pair.split(",")[n])
+                        )
 
-            await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
+            await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_changeDisperser(self):
 
-        async with Harness(simulation_mode=1) as harness:
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
+        ):
 
-            await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
+            while True:
+                try:
+                    summary_state = salobj.State(
+                        (
+                            await self.remote.evt_summaryState.next(
+                                flush=False, timeout=LONG_TIMEOUT
+                            )
+                        ).summaryState
+                    )
+                except asyncio.TimeoutError:
+                    raise RuntimeError("Could not get ENABLED state from CSC.")
+                if summary_state == salobj.State.ENABLED:
+                    break
 
-            if hasattr(harness.remote, "evt_settingsAppliedValues"):
-                set_applied = await harness.remote.evt_settingsAppliedValues.next(
-                    flush=False,
-                    timeout=BASE_TIMEOUT)
-            elif hasattr(harness.remote, "evt_settingsApplied"):
-                set_applied = await harness.remote.evt_settingsApplied.next(flush=False,
-                                                                            timeout=BASE_TIMEOUT)
-            else:
-                return
+            set_applied = await self.remote.evt_settingsAppliedValues.aget(
+                timeout=BASE_TIMEOUT
+            )
 
-            for i, disperser_name in enumerate(set_applied.gratingNames.split(',')):
+            for i, disperser_name in enumerate(set_applied.gratingNames.split(",")):
 
-                disperser_id = i+1
+                disperser_id = i
 
                 with self.subTest(disperser_name=disperser_name):
-                    harness.remote.evt_reportedDisperserPosition.flush()
-                    harness.remote.evt_disperserInPosition.flush()
-                    await harness.remote.cmd_changeDisperser.set_start(
-                        disperser=0,
-                        name=disperser_name,
-                        timeout=LONG_TIMEOUT)
-                    inpos1 = await harness.remote.evt_disperserInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    inpos2 = await harness.remote.evt_disperserInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    dpos = harness.remote.evt_reportedDisperserPosition.get()
+                    self.remote.evt_reportedDisperserPosition.flush()
+                    self.remote.evt_disperserInPosition.flush()
+                    await self.remote.cmd_changeDisperser.set_start(
+                        disperser=0, name=disperser_name, timeout=LONG_TIMEOUT
+                    )
+                    inpos1 = await self.remote.evt_disperserInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    inpos2 = await self.remote.evt_disperserInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    dpos = await self.remote.evt_reportedDisperserPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(dpos.name,
-                                     disperser_name)
-                    self.assertEqual(dpos.position,
-                                     disperser_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    # position comes back with some numerical precision issue, looks like float is
-                    # converted to double somewhere, so use almost equal
-                    np.testing.assert_allclose(dpos.focusOffset,
-                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
-                                               rtol=0.0, atol=1e-6)
+                    self.assertEqual(dpos.name, disperser_name)
+                    self.assertEqual(dpos.slot, disperser_id)
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type position comes back with some
+                    # numerical precision issue, looks like float is converted
+                    # to double somewhere, so use almost equal
+                    self.assertAlmostEqual(
+                        dpos.focusOffset,
+                        float(set_applied.gratingFocusOffsets.split(",")[i]),
+                    )
+
+                    for n, offset in enumerate(dpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.gratingPointingOffsets.split("],")[i]
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
+                        trimmed_pair = (pair.replace("]", "")).replace("[", "")
+                        self.assertAlmostEqual(
+                            offset, float(trimmed_pair.split(",")[n])
+                        )
 
                 with self.subTest(disperser_id=disperser_id):
-                    harness.remote.evt_reportedDisperserPosition.flush()
-                    harness.remote.evt_disperserInPosition.flush()
-                    await harness.remote.cmd_changeDisperser.set_start(
-                        disperser=disperser_id,
-                        name='',
-                        timeout=LONG_TIMEOUT)
-                    inpos1 = await harness.remote.evt_disperserInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    inpos2 = await harness.remote.evt_disperserInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    dpos = harness.remote.evt_reportedDisperserPosition.get()
+                    self.remote.evt_reportedDisperserPosition.flush()
+                    self.remote.evt_disperserInPosition.flush()
+                    await self.remote.cmd_changeDisperser.set_start(
+                        disperser=disperser_id, name="", timeout=LONG_TIMEOUT
+                    )
+                    inpos1 = await self.remote.evt_disperserInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    inpos2 = await self.remote.evt_disperserInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    dpos = await self.remote.evt_reportedDisperserPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(dpos.name,
-                                     disperser_name)
-                    self.assertEqual(dpos.position,
-                                     disperser_id)
+                    self.assertEqual(dpos.name, disperser_name)
+                    self.assertEqual(dpos.slot, disperser_id)
 
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    # position comes back with some numerical precision issue, looks like float
-                    # is converted to double somewhere, so use almost equal
-                    np.testing.assert_allclose(dpos.focusOffset,
-                                               float(set_applied.gratingFocusOffsets.split(',')[i]),
-                                               rtol=0.0, atol=1e-6)
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type position comes back with some
+                    # numerical precision issue, looks like float is converted
+                    # to double somewhere, so use almost equal
+                    self.assertAlmostEqual(
+                        dpos.focusOffset,
+                        float(set_applied.gratingFocusOffsets.split(",")[i]),
+                    )
 
-            await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
+                    for n, offset in enumerate(dpos.pointingOffsets):
+                        # line below gives "[X,Y"
+                        pair = set_applied.gratingPointingOffsets.split("],")[i]
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
+                        trimmed_pair = (pair.replace("]", "")).replace("[", "")
+                        self.assertAlmostEqual(
+                            offset, float(trimmed_pair.split(",")[n])
+                        )
+
+            await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_moveLinearStage(self):
 
-        async with Harness(simulation_mode=1) as harness:
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
+        ):
 
-            await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
-
-            for ls_pos in [0., 100, 500, 900, 1000]:
+            for ls_pos in [0.0, 100, 500, 900, 1000]:
                 with self.subTest(ls_pos=ls_pos):
-                    harness.remote.evt_reportedLinearStagePosition.flush()
-                    harness.remote.evt_linearStageInPosition.flush()
-                    await harness.remote.cmd_moveLinearStage.set_start(distanceFromHome=ls_pos,
-                                                                       timeout=LONG_TIMEOUT)
-                    inpos1 = await harness.remote.evt_linearStageInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    inpos2 = await harness.remote.evt_linearStageInPosition.next(
-                        flush=False,
-                        timeout=BASE_TIMEOUT)
-                    lpos = harness.remote.evt_reportedLinearStagePosition.get()
+                    self.remote.evt_reportedLinearStagePosition.flush()
+                    self.remote.evt_linearStageInPosition.flush()
+                    await self.remote.cmd_moveLinearStage.set_start(
+                        distanceFromHome=ls_pos, timeout=LONG_TIMEOUT
+                    )
+                    inpos1 = await self.remote.evt_linearStageInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    inpos2 = await self.remote.evt_linearStageInPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
+                    lpos = self.remote.evt_reportedLinearStagePosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(lpos.position,
-                                     ls_pos)
+                    self.assertEqual(lpos.position, ls_pos)
 
-            await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
+            await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_homeLinearStage(self):
 
-        async with Harness(simulation_mode=1) as harness:
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
+        ):
 
-            await salobj.set_summary_state(harness.remote, salobj.State.ENABLED)
+            self.remote.evt_linearStageInPosition.flush()
 
-            harness.remote.evt_linearStageInPosition.flush()
+            await self.remote.cmd_homeLinearStage.set_start(timeout=LONG_TIMEOUT)
 
-            await harness.remote.cmd_homeLinearStage.set_start(timeout=LONG_TIMEOUT)
-
-            inpos1 = await harness.remote.evt_linearStageInPosition.next(flush=False,
-                                                                         timeout=BASE_TIMEOUT)
-            inpos2 = await harness.remote.evt_linearStageInPosition.next(flush=False,
-                                                                         timeout=BASE_TIMEOUT)
-            lpos = await harness.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
+            inpos1 = await self.remote.evt_linearStageInPosition.next(
+                flush=False, timeout=BASE_TIMEOUT
+            )
+            inpos2 = await self.remote.evt_linearStageInPosition.next(
+                flush=False, timeout=BASE_TIMEOUT
+            )
+            lpos = await self.remote.evt_reportedLinearStagePosition.aget(
+                timeout=BASE_TIMEOUT
+            )
             self.assertFalse(inpos1.inPosition)
             self.assertTrue(inpos2.inPosition)
-            self.assertEqual(lpos.position,
-                             0.)
+            self.assertEqual(lpos.position, 0.0)
 
-            await salobj.set_summary_state(harness.remote, salobj.State.STANDBY)
+            await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
+
+    def test_check_fg_config(self):
+
+        config_filter = {
+            "filter_name": ["a", "b", "c", "d"],
+            "band": ["a", "b", "c", "d"],
+            "central_wavelength_filter": [700, 701, 702, 703],
+            "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+            "offset_pointing_filter": {
+                "x": [0.3, 0.2, 0.1, 0.0],
+                "y": [0.3, 0.2, 0.1, 0.0],
+            },
+        }
+
+        self.assertEqual(CSC.check_fg_config(config_filter), 4)
+
+        config_grating = {
+            "grating_name": ["a", "b", "c", "d"],
+            "band": ["a", "b", "c", "d"],
+            "offset_focus_grating": [0.0, 1.0, 2.0, 3.0],
+            "offset_pointing_grating": {
+                "x": [0.3, 0.2, 0.1, 0.0],
+                "y": [0.3, 0.2, 0.1, 0.0],
+            },
+        }
+
+        self.assertEqual(CSC.check_fg_config(config_grating), 4)
+
+        bad_config = {
+            "config_filter_bad_filter_name_1": {
+                "filter_name": ["a", "b", "c"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_filter_name_2": {
+                "filter_name": ["a", "b", "c", "d", "e"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_band_1": {
+                "filter_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_band_2": {
+                "filter_name": ["a", "b", "c", "d", "e"],
+                "band": ["a", "b", "c", "d", "e"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_offset_focus_filter_1": {
+                "filter_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_offset_focus_filter_2": {
+                "filter_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0, 4.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_x": {
+                "filter_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_filter_bad_y": {
+                "filter_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "central_wavelength_filter": [700, 701, 702, 703],
+                "offset_focus_filter": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_filter": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1],
+                },
+            },
+            "config_grating_bad_x": {
+                "grating_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "offset_focus_grating": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_grating": {
+                    "x": [0.3, 0.2, 0.1],
+                    "y": [0.3, 0.2, 0.1, 0.0],
+                },
+            },
+            "config_grating_bad_y": {
+                "grating_name": ["a", "b", "c", "d"],
+                "band": ["a", "b", "c", "d"],
+                "offset_focus_grating": [0.0, 1.0, 2.0, 3.0],
+                "offset_pointing_grating": {
+                    "x": [0.3, 0.2, 0.1, 0.0],
+                    "y": [0.3, 0.2, 0.1, 0.0, 0.0],
+                },
+            },
+        }
+
+        for config in bad_config:
+            with self.subTest(config=config):
+                with self.assertRaises(RuntimeError):
+                    CSC.check_fg_config(bad_config[config])
 
 
-if __name__ == '__main__':
-
-    stream_handler = logging.StreamHandler(sys.stdout)
-    logger.addHandler(stream_handler)
-
+if __name__ == "__main__":
     unittest.main()
