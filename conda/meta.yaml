@@ -16,24 +16,13 @@ build:
     - PYTHON_BUILD_VERSION
     - PYTHON_BUILD_LOCATION
     - TS_CONFIG_LATISS_DIR
-    - LSST_DDS_DOMAIN
 
 test:
   requires:
-    - pytest
-    - pytest-flake8
-    - pytest-cov
-    - asynctest
-    - numpy
-    - astropy
-    - jsonschema
-    - pyyaml
-    - boto3
-    - moto
-    - ts-simactuators
+    - ts-conda-build
     - ts-dds
-    - ts-idl
-    - ts-salobj
+    - ts-idl ==2.1.0_6.2.1_5.0.1
+    - ts-salobj ==6.0.3
   source_files:
     - python
     - bin.src
@@ -54,5 +43,5 @@ requirements:
     - python
     - setuptools
     - setuptools_scm
-    - ts-salobj
-    - ts-idl
+    - ts-salobj ==6.0.3
+    - ts-idl ==2.1.0_6.2.1_5.0.1
