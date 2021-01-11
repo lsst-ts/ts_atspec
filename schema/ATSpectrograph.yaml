@@ -1,9 +1,10 @@
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_atspec/blob/master/schema/ATSpectrograph.yaml
 # title must end with one or more spaces followed by the schema version, which must begin with "v"
-title: ATSpectrograph v2
+title: ATSpectrograph v3
 description: Schema for ATSpectrograph configuration files
 type: object
+additionalProperties: false
 properties:
   instrument_port:
     description: The port on which the instrument mounted on the telescope
@@ -29,24 +30,35 @@ properties:
     decription: Tolerance for positioning the linear stage.
     type: number
     default: 0.01
-
   filters:
     type: object
+    additionalProperties: false
     properties:
       filter_name:
         decription: Currently installed filter names.
         default:
           - empty_1
           - empty_2
-          - diffuser
           - empty_3
+          - empty_4
         type: array
         uniqueItems: true
         items:
           type: string
         minItems: 4
         maxItems: 4
-
+      band:
+        decription: Descriptive bandpass associated with the filter in the beam (e.g. u,g,r,i,z,y).
+        default:
+          - Empty
+          - Empty
+          - Empty
+          - Empty
+        type: array
+        items:
+          type: string
+        minItems: 4
+        maxItems: 4
       central_wavelength_filter:
         description: >
           Wavelength for which optical system will be opimized in units of nm. Approximations are sufficient as the
@@ -61,7 +73,6 @@ properties:
           - 701
           - 702
           - 703
-
       offset_focus_filter:
         description: >
           Focus offset to be applied on the secondary mirror in units of um, relative to no glass being installed.
@@ -84,6 +95,7 @@ properties:
           Relative to the center of the detector, positive Y-values result in the star moving up an amplifier,
           positive X-values result in moving along rows, to higher pixel values.
         type: object
+        additionalProperties: false
         properties:
           x:
             type: array
@@ -111,10 +123,9 @@ properties:
               - 0.2
               - 0.3
             description: Y-offset in arcseconds.
-
-
   gratings:
     type: object
+    additionalProperties: false
     properties:
       grating_name:
         decription: Currently installed grating names.
@@ -125,6 +136,18 @@ properties:
           - holo_etu1
         type: array
         uniqueItems: true
+        items:
+          type: string
+        minItems: 4
+        maxItems: 4
+      band:
+        decription: Descriptive name associated with the grating/disperser in the beam (e.g. R100).
+        default:
+          - Empty
+          - Empty
+          - Empty
+          - Empty
+        type: array
         items:
           type: string
         minItems: 4
@@ -151,6 +174,7 @@ properties:
           Relative to the center of the detector, positive Y-values result in the star moving up an amplifier,
           positive X-values result in moving along rows, to higher pixel values.
         type: object
+        additionalProperties: false
         properties:
           x:
             type: array
@@ -178,6 +202,3 @@ properties:
               - 0.2
               - 0.3
             description: Y-offset in arcseconds.
-
-
-additionalProperties: false

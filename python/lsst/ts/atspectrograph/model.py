@@ -1,30 +1,31 @@
-
 import asyncio
 
 from lsst.ts.idl.enums import ATSpectrograph
 
-__all__ = ['Model']
+__all__ = ["Model"]
 
 _LOCAL_HOST = "127.0.0.1"
 _DEFAULT_PORT = 9999
 
-_limit_decode = {"-": -1,
-                 "0": 0,
-                 "+": +1}
+_limit_decode = {"-": -1, "0": 0, "+": +1}
 
 
 class FilterWheelStatus:
     """Store possible filter wheel status and error codes."""
 
-    status = {"I": ATSpectrograph.Status.HOMING,
-              "M": ATSpectrograph.Status.MOVING,
-              "S": ATSpectrograph.Status.STATIONARY,
-              "X": ATSpectrograph.Status.NOTINPOSITION}
+    status = {
+        "I": ATSpectrograph.Status.HOMING,
+        "M": ATSpectrograph.Status.MOVING,
+        "S": ATSpectrograph.Status.STATIONARY,
+        "X": ATSpectrograph.Status.NOTINPOSITION,
+    }
 
-    error = {"N": ATSpectrograph.Error.NONE,
-             "B": ATSpectrograph.Error.BUSY,
-             "I": ATSpectrograph.Error.NOTINITIALIZED,
-             "T": ATSpectrograph.Error.MOVETIMEOUT}
+    error = {
+        "N": ATSpectrograph.Error.NONE,
+        "B": ATSpectrograph.Error.BUSY,
+        "I": ATSpectrograph.Error.NOTINITIALIZED,
+        "T": ATSpectrograph.Error.MOVETIMEOUT,
+    }
 
     def parse_status(self, status):
         """Parse status string.
@@ -55,11 +56,13 @@ class FilterWheelStatus:
 
 class GratingWheelStatus(FilterWheelStatus):
     """Store possible Grating wheel status and error codes."""
+
     pass
 
 
 class GratingStageStatus(FilterWheelStatus):
     """Store possible Grating Stage status and error codes."""
+
     pass
 
 
@@ -87,6 +90,7 @@ class GratingWheelStepPosition(FilterWheelStatus):
 
 class FilterWheelStepPosition(GratingWheelStepPosition):
     """Store possible Filter Wheel Step Position status and error codes."""
+
     pass
 
 
@@ -94,6 +98,7 @@ class Model:
     """
 
     """
+
     def __init__(self, log):
 
         self.simulation_mode = 0
@@ -102,10 +107,10 @@ class Model:
 
         self.host = _LOCAL_HOST
         self.port = _DEFAULT_PORT
-        self.connection_timeout = 10.
-        self.read_timeout = 10.
+        self.connection_timeout = 120.0
+        self.read_timeout = 120.0
 
-        self.move_timeout = 60.
+        self.move_timeout = 60.0
 
         self.connect_task = None
         self.reader = None
@@ -129,8 +134,8 @@ class Model:
         ret_val : str
             Response from controller.
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         """
         ret_val = await self.run_command("!XXX\r\n", want_connection=want_connection)
@@ -145,8 +150,8 @@ class Model:
         filename : str
             Name of file to load configuration from.
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Returns
         -------
@@ -158,7 +163,9 @@ class Model:
         RuntimeError
 
         """
-        ret_val = await self.run_command(f"!LDC {filename}\r\n", want_connection=want_connection)
+        ret_val = await self.run_command(
+            f"!LDC {filename}\r\n", want_connection=want_connection
+        )
 
         return self.check_return(ret_val)
 
@@ -180,8 +187,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Raises
         ------
@@ -210,8 +217,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Raises
         ------
@@ -240,8 +247,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Raises
         ------
@@ -263,8 +270,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
 
         Returns
@@ -286,8 +293,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Returns
         -------
@@ -308,8 +315,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         Returns
         -------
@@ -330,8 +337,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         """
         ret_val = await self.run_command("!FWI\r\n", want_connection=want_connection)
@@ -343,8 +350,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
         """
         ret_val = await self.run_command("!GRI\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
@@ -355,8 +362,8 @@ class Model:
         Parameters
         ----------
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
         """
         ret_val = await self.run_command("!LSI\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
@@ -369,12 +376,14 @@ class Model:
         pos : int
             Filter id (0-3).
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
         """
         if pos < 0 or pos > 3:
             raise RuntimeError(f"Out of range (0-3), got {pos}.")
-        ret_val = await self.run_command(f"!FWM{pos}\r\n", want_connection=want_connection)
+        ret_val = await self.run_command(
+            f"!FWM{pos}\r\n", want_connection=want_connection
+        )
         return self.check_return(ret_val)
 
     async def move_gw(self, pos, want_connection=False):
@@ -385,13 +394,15 @@ class Model:
         pos : int
             Grating id (0-3)
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         """
         if pos < 0 or pos > 3:
             raise RuntimeError(f"Out of range (0-3), got {pos}.")
-        ret_val = await self.run_command(f"!GRM{pos}\r\n", want_connection=want_connection)
+        ret_val = await self.run_command(
+            f"!GRM{pos}\r\n", want_connection=want_connection
+        )
         return self.check_return(ret_val)
 
     async def move_gs(self, pos, want_connection=False):
@@ -402,15 +413,19 @@ class Model:
         pos : float
             Position from home (in mm).
         want_connection : bool
-            Boolean to specify if a connection with the controller is to be opened in case it is
-            closed.
+            Boolean to specify if a connection with the controller is to be
+            opened in case it is closed.
 
         """
         # TODO: limit check?
         if not (self.min_pos <= pos <= self.max_pos):
-            raise RuntimeError(f"Requested position {pos} outside limits "
-                               f"({self.min_pos} / {self.max_pos}).")
-        ret_val = await self.run_command(f"!LSM{pos}\r\n", want_connection=want_connection)
+            raise RuntimeError(
+                f"Requested position {pos} outside limits "
+                f"({self.min_pos} / {self.max_pos})."
+            )
+        ret_val = await self.run_command(
+            f"!LSM{pos}\r\n", want_connection=want_connection
+        )
         return self.check_return(ret_val)
 
     async def connect(self):
@@ -421,15 +436,18 @@ class Model:
             raise RuntimeError("Already connected")
         host = _LOCAL_HOST if self.simulation_mode == 1 else self.host
         self.connect_task = asyncio.open_connection(host=host, port=self.port)
-        self.reader, self.writer = await asyncio.wait_for(self.connect_task,
-                                                          timeout=self.connection_timeout)
+        self.reader, self.writer = await asyncio.wait_for(
+            self.connect_task, timeout=self.connection_timeout
+        )
 
         # Read welcome message
-        await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
-                               timeout=self.read_timeout)
+        await asyncio.wait_for(
+            self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout
+        )
 
-        read_bytes = await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
-                                            timeout=self.read_timeout)
+        read_bytes = await asyncio.wait_for(
+            self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout
+        )
 
         if "Spectrograph" not in read_bytes.decode().rstrip():
             raise RuntimeError("No welcome message from controller.")
@@ -457,13 +475,18 @@ class Model:
         cmd : `str`
             The command to send, e.g. "5.0 MV", "SO" or "?".
         want_connection : bool
-            Flag to specify if a connection is to be requested in case it is not connected.
+            Flag to specify if a connection is to be requested in case it is
+            not connected.
         """
 
         self.log.debug(f"run_command: {cmd}")
 
         if not self.connected:
-            if want_connection and self.connect_task is not None and not self.connect_task.done():
+            if (
+                want_connection
+                and self.connect_task is not None
+                and not self.connect_task.done()
+            ):
                 await self.connect_task
             else:
                 raise RuntimeError("Not connected and not trying to connect")
@@ -471,10 +494,13 @@ class Model:
 
             # Make sure controller is ready...
             try:
-                read_bytes = await asyncio.wait_for(self.reader.read(1),
-                                                    timeout=self.read_timeout)
+                read_bytes = await asyncio.wait_for(
+                    self.reader.read(1), timeout=self.read_timeout
+                )
                 if read_bytes != b">":
-                    raise RuntimeError(f"Controller not ready: Received '{read_bytes}'...")
+                    raise RuntimeError(
+                        f"Controller not ready: Received '{read_bytes}'..."
+                    )
             except Exception as e:
                 await self.disconnect()
                 raise e
@@ -484,14 +510,17 @@ class Model:
 
             if cmd.startswith("?"):
                 try:
-                    read_bytes = await asyncio.wait_for(self.reader.readuntil("\r\n".encode()),
-                                                        timeout=self.read_timeout)
+                    read_bytes = await asyncio.wait_for(
+                        self.reader.readuntil("\r\n".encode()),
+                        timeout=self.read_timeout,
+                    )
                 except Exception as e:
                     await self.disconnect()
                     raise e
             else:
-                read_bytes = await asyncio.wait_for(self.reader.read(1),
-                                                    timeout=self.read_timeout)
+                read_bytes = await asyncio.wait_for(
+                    self.reader.read(1), timeout=self.read_timeout
+                )
 
             return read_bytes.decode()
 

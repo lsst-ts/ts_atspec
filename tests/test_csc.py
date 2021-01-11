@@ -28,8 +28,8 @@ class Harness:
         self.csc = csc.CSC(simulation_mode=simulation_mode)
         self.remote = salobj.Remote(self.csc.domain, "ATSpectrograph")
 
-        # set the debug level to be whatever is set above. Note that this statement *MUST* occur after
-        # the controllers are created
+        # set the debug level to be whatever is set above. Note that this
+        # statement *MUST* occur after the controllers are created
         self.csc.log.level = logger.level
 
     async def __aenter__(self):
@@ -95,9 +95,11 @@ class TestATSpecCSC(asynctest.TestCase):
 
             # send start; new state is DISABLED
             cmd_attr = getattr(harness.remote, "cmd_start")
-            await asyncio.sleep(BASE_TIMEOUT)  # give time for event loop to run
+            # give time for event loop to run
+            await asyncio.sleep(BASE_TIMEOUT)
             harness.remote.evt_summaryState.flush()
-            await cmd_attr.start(timeout=120)  # this one can take longer to execute
+            # this one can take longer to execute
+            await cmd_attr.start(timeout=120)
             state = await harness.remote.evt_summaryState.next(
                 flush=False, timeout=BASE_TIMEOUT
             )
@@ -125,7 +127,8 @@ class TestATSpecCSC(asynctest.TestCase):
 
             # send enable; new state is ENABLED
             cmd_attr = getattr(harness.remote, "cmd_enable")
-            await asyncio.sleep(BASE_TIMEOUT)  # give time for the event loop to run
+            # give time for the event loop to run
+            await asyncio.sleep(BASE_TIMEOUT)
             harness.remote.evt_summaryState.flush()
             try:
                 # enable may take some time to complete
@@ -205,7 +208,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     await harness.remote.cmd_changeFilter.set_start(
                         filter=0, name=filter_name, timeout=LONG_TIMEOUT
                     )
-                    # Verify the filter wheel goes out of position, then into position
+                    # Verify the filter wheel goes out of position, then into
+                    # position
                     inpos1 = await harness.remote.evt_filterInPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
@@ -218,7 +222,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(fpos.name, filter_name)
                     self.assertEqual(fpos.position, filter_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type
                     self.assertEqual(
                         fpos.centralWavelength,
                         float(set_applied.filterCentralWavelengths.split(",")[i]),
@@ -227,12 +232,13 @@ class TestATSpecCSC(asynctest.TestCase):
                         fpos.focusOffset,
                         float(set_applied.filterFocusOffsets.split(",")[i]),
                     )
-                    # pointingOffsets are arrays, but in set_applied it's a string of arrays
-                    # so these have to be split and converted
+                    # pointingOffsets are arrays, but in set_applied it's a
+                    # string of arrays so these have to be split and converted
                     for n, offset in enumerate(fpos.pointingOffsets):
                         # line below gives "[X,Y"
                         pair = set_applied.filterPointingOffsets.split("],")[i]
-                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n])
@@ -257,7 +263,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(fpos.name, filter_name)
                     self.assertEqual(fpos.position, filter_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type
                     self.assertEqual(
                         fpos.centralWavelength,
                         float(set_applied.filterCentralWavelengths.split(",")[i]),
@@ -269,7 +276,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     for n, offset in enumerate(fpos.pointingOffsets):
                         # line below gives "[X,Y"
                         pair = set_applied.filterPointingOffsets.split("],")[i]
-                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n])
@@ -315,8 +323,9 @@ class TestATSpecCSC(asynctest.TestCase):
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(dpos.name, disperser_name)
                     self.assertEqual(dpos.position, disperser_id)
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    # position comes back with some numerical precision issue, looks like float is
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type position comes back with some
+                    # numerical precision issue, looks like float is
                     # converted to double somewhere, so use almost equal
                     self.assertAlmostEqual(
                         dpos.focusOffset,
@@ -326,7 +335,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     for n, offset in enumerate(dpos.pointingOffsets):
                         # line below gives "[X,Y"
                         pair = set_applied.gratingPointingOffsets.split("],")[i]
-                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n])
@@ -350,9 +360,10 @@ class TestATSpecCSC(asynctest.TestCase):
                     self.assertEqual(dpos.name, disperser_name)
                     self.assertEqual(dpos.position, disperser_id)
 
-                    # settingsApplied returns lists of floats, so have to set to the correct type
-                    # position comes back with some numerical precision issue, looks like float
-                    # is converted to double somewhere, so use almost equal
+                    # settingsApplied returns lists of floats, so have to set
+                    # to the correct type position comes back with some
+                    # numerical precision issue, looks like float is converted
+                    # to double somewhere, so use almost equal
                     self.assertAlmostEqual(
                         dpos.focusOffset,
                         float(set_applied.gratingFocusOffsets.split(",")[i]),
@@ -361,7 +372,8 @@ class TestATSpecCSC(asynctest.TestCase):
                     for n, offset in enumerate(dpos.pointingOffsets):
                         # line below gives "[X,Y"
                         pair = set_applied.gratingPointingOffsets.split("],")[i]
-                        # need to strip off the [ and/or ] which is why there is a [1:] below
+                        # need to strip off the [ and/or ] which is why there
+                        # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n])
