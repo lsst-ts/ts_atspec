@@ -4,6 +4,24 @@
 Version History
 ===============
 
+v0.7.1
+------
+
+* Update setup.cfg to reformat code with black.
+* Update configuration schema to add timeout attributes.
+* Set timeout configuration to the model class.
+* Implement backward compatibility with previous xml file for sending new configuration values.
+* If connection fails during enable, disconnect before returning.
+* Add `begin_enable` method to send INPROGRESS acknowledgment.
+
+Requirements
+------------
+
+* xml >=7
+* salobj >6
+* ts_idl >2
+* ts_config_latiss >=0.6
+
 v0.7.0
 ------
 * Implement compatibility with xml 7.0.0.

@@ -122,6 +122,23 @@ class CSC(salobj.ConfigurableCsc):
 
         await super().end_start(data)
 
+    async def begin_enable(self, id_data):
+        """Begin do_enable; called before state changes.
+
+        Send CMD_INPROGRESS acknowledgement with estimated timeout.
+
+        Parameters
+        ----------
+        id_data : `CommandIdData`
+            Command ID and data
+        """
+
+        self.cmd_enable.ack_in_progress(
+            id_data, timeout=self.model.connection_timeout + self.timeout
+        )
+
+        await super().begin_enable(id_data)
+
     async def end_enable(self, data):
         """End do_enable; called after state changes.
 
@@ -138,11 +155,20 @@ class CSC(salobj.ConfigurableCsc):
             try:
                 await self.model.connect()
             except Exception as e:
+
                 self.fault(
                     code=CONNECTION_ERROR,
                     report="Cannot connect to controller.",
                     traceback=traceback.format_exc(),
                 )
+
+                try:
+                    await self.model.disconnect()
+                except Exception:
+                    self.log.exception(
+                        "Ignoring exception while trying to disconnect from controller."
+                    )
+
                 raise e
 
             self.want_connection = False
@@ -761,6 +787,10 @@ class CSC(salobj.ConfigurableCsc):
         self.model.host = config.host
         self.model.port = config.port
 
+        self.model.connection_timeout = config.connection_timeout
+        self.model.read_timeout = config.response_timeout
+        self.model.move_timeout = config.move_timeout
+
         self.model.min_pos = config.min_pos
         self.model.max_pos = config.max_pos
 
@@ -832,6 +862,13 @@ class CSC(salobj.ConfigurableCsc):
                 for key in gratings_str:
                     gratings_str[key] += ","
 
+        # Backward compatibility with xml < 7.2
+        if hasattr(self.evt_settingsAppliedValues.DataType(), "connectionTimeout"):
+            self.evt_settingsAppliedValues.set(
+                connectionTimeout=self.model.connection_timeout,
+                responseTimeout=self.model.read_timeout,
+                moveTimeout=self.model.move_timeout,
+            )
         self.evt_settingsAppliedValues.set_put(
             host=self.model.host,
             port=self.model.port,
