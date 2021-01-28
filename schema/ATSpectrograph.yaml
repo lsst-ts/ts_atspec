@@ -18,6 +18,22 @@ properties:
     decription: Port for the controller
     type: integer
     default: 9999
+  connection_timeout:
+    description: >-
+        How long to wait for a response from the low level controller when
+        establishing the connection (in seconds).
+    type: number
+    default: 60.
+  response_timeout:
+    description: >-
+      How long to wait for a response from low level controller when a command
+      or request is sent (in seconds).
+    type: number
+    default: 30.
+  move_timeout:
+    description: How long to wait for a movement (from wheels and/or linear stage) to complete (in seconds).
+    type: number
+    default: 60.
   min_pos:
     decription: Minimum position for the linear stage (in mm).
     type: number
