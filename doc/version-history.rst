@@ -4,6 +4,21 @@
 Version History
 ===============
 
+v0.7.2
+------
+
+* Fix use of deprecated salobj feature "implement_simulation_mode".
+* Implement support for version.
+* Fix documentation build script.
+
+Requirements
+------------
+
+* xml >=7
+* salobj >=6.3
+* ts_idl >3
+* ts_config_latiss >=0.6
+
 v0.7.1
 ------
 
