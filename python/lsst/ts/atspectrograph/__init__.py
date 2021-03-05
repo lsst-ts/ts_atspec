@@ -19,14 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .atspec_csc import *
-from .model import *
-from .mock_controller import MockSpectrographController
-
 try:
     from .version import *
 except ImportError:
     __version__ = "?"
-    __repo_version__ = "?"
-    __fingerprint__ = "? *"
-    __dependency_versions__ = {}
+
+from .atspec_csc import CSC
+from .model import *
+from .mock_controller import MockSpectrographController

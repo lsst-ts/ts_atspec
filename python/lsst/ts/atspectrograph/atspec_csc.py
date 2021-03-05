@@ -9,6 +9,7 @@ from lsst.ts.idl.enums import ATSpectrograph
 
 from .mock_controller import MockSpectrographController
 from .model import Model
+from . import __version__
 
 __all__ = ["CSC"]
 
@@ -52,11 +53,11 @@ class CSC(salobj.ConfigurableCsc):
     """
 
     valid_simulation_modes = (0, 1)
+    version = __version__
 
     def __init__(
         self, config_dir=None, initial_state=salobj.State.STANDBY, simulation_mode=0
     ):
-        self.mock_ctrl = None
 
         schema_path = (
             pathlib.Path(__file__)
@@ -85,6 +86,11 @@ class CSC(salobj.ConfigurableCsc):
 
         self.model = Model(self.log)
 
+        if simulation_mode == 1:
+            self.mock_ctrl = MockSpectrographController(port=self.model.port)
+        else:
+            self.mock_ctrl = None
+
         # Add a remote for the ATCamera to monitor if it is exposing or not.
         # If it is, reject commands that would cause motion.
         self.atcam_remote = salobj.Remote(
@@ -107,6 +113,24 @@ class CSC(salobj.ConfigurableCsc):
         self.atcam_remote.evt_startReadout.callback = (
             self.monitor_start_readout_callback
         )
+
+    async def handle_summary_state(self):
+        """Called after every state transition.
+
+        If running in simulation mode, check if mock_ctrl has been initialized
+        and, if not, wait for mock controller to start.
+
+        Parameters
+        ----------
+        data : ATSpectrograph_command_start
+            Command data
+
+        """
+
+        if self.mock_ctrl is not None and not self.mock_ctrl.initialized:
+            await self.mock_ctrl.start()
+
+        await super().handle_summary_state()
 
     async def end_start(self, data):
         """end do_start; called after state changes.
@@ -451,54 +475,6 @@ class CSC(salobj.ConfigurableCsc):
         # TODO: Report new state and position since it will hold all previous
         # information, however low priority since this has never actually been
         # used.
-
-    async def implement_simulation_mode(self, simulation_mode):
-        """Implement going into or out of simulation mode.
-
-        Parameters
-        ----------
-        simulation_mode : int
-            Requested simulation mode; 0 for normal operation.
-
-        Raises
-        ------
-        ExpectedError
-            If ``simulation_mode`` is not a supported value.
-
-        Notes
-        -----
-        Subclasses should override this method to implement simulation
-        mode. The implementation should:
-
-        * Check the value of ``simulation_mode`` and raise
-          `ExpectedError` if not supported.
-        * If ``simulation_mode`` is 0 then go out of simulation mode.
-        * If ``simulation_mode`` is nonzero then enter the requested
-          simulation mode.
-
-        Do not check the current summary state, nor set the
-        ``simulation_mode`` property nor report the new mode.
-        All of that is handled `do_setSimulationMode`.
-        """
-        if simulation_mode not in (0, 1):
-            raise salobj.ExpectedError(
-                f"Simulation_mode={simulation_mode} must be 0 or 1"
-            )
-
-        if self.simulation_mode == simulation_mode:
-            return
-
-        self.model.simulation_mode = simulation_mode
-
-        if simulation_mode == 1:
-            self.mock_ctrl = MockSpectrographController(port=self.model.port)
-            await asyncio.wait_for(self.mock_ctrl.start(), timeout=2)
-        elif simulation_mode == 0 and self.mock_ctrl is not None:
-            await self.mock_ctrl.stop(timeout=2.0)
-            self.mock_ctrl = None
-
-        if self.want_connection:
-            await self.connect()
 
     async def move_element(
         self,
