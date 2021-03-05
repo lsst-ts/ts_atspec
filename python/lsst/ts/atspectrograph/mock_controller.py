@@ -66,10 +66,18 @@ class MockSpectrographController:
             "!LSM": self.lsm,
         }
 
+    @property
+    def initialized(self):
+        return self._server is not None
+
     async def start(self):
         """Start the TCP/IP server, set start_task Done
         and start the command loop.
         """
+        if self.initialized:
+            self.log.debug("Server initialized.")
+            return
+
         self._server = await asyncio.start_server(
             self.cmd_loop, host="127.0.0.1", port=self.port
         )
