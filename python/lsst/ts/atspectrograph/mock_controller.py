@@ -83,8 +83,7 @@ class MockSpectrographController:
         )
 
     async def stop(self, timeout=5):
-        """Stop the TCP/IP server.
-        """
+        """Stop the TCP/IP server."""
         if self._server is None:
             return
 
