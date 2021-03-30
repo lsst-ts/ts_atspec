@@ -95,9 +95,7 @@ class FilterWheelStepPosition(GratingWheelStepPosition):
 
 
 class Model:
-    """
-
-    """
+    """"""
 
     def __init__(self, log):
 
@@ -425,8 +423,7 @@ class Model:
         return self.check_return(ret_val)
 
     async def connect(self):
-        """Connect to the spectrograph controller's TCP/IP port.
-        """
+        """Connect to the spectrograph controller's TCP/IP port."""
         self.log.debug(f"connecting to: {self.host}:{self.port}")
         if self.connected:
             raise RuntimeError("Already connected")
@@ -451,8 +448,7 @@ class Model:
         self.log.debug(f"connected: {read_bytes.decode().rstrip()}")
 
     async def disconnect(self):
-        """Disconnect from the spectrograph controller's TCP/IP port.
-        """
+        """Disconnect from the spectrograph controller's TCP/IP port."""
         self.log.debug("disconnect")
         writer = self.writer
         self.reader = None
