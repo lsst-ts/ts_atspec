@@ -4,6 +4,13 @@
 Version History
 ===============
 
+v0.7.3
+------
+
+* Reformat code using black 20.
+* Pin version of ts-conda-build to 0.3
+* Remove usage of asynctest in favor of `unittest.IsolatedAsyncioTestCase`.
+
 v0.7.2
 ------
 
