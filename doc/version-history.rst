@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.7.4
+------
+
+* Implement new salobj config_schema mechanism and ditch schema path.
+
 v0.7.3
 ------
 

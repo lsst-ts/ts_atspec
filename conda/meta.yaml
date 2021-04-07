@@ -22,7 +22,6 @@ test:
     - python
     - bin.src
     - tests
-    - schema
     - setup.cfg
   commands:
     - py.test
@@ -38,5 +37,5 @@ requirements:
     - python
     - setuptools
     - setuptools_scm
-    - ts-salobj
+    - ts-salobj >=6.3
     - ts-idl
