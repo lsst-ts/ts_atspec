@@ -753,8 +753,18 @@ class CSC(salobj.ConfigurableCsc):
         summary state from `State.STANDBY` to `State.DISABLED`.
         """
 
-        self.model.host = config.host
-        self.model.port = config.port
+        if self.simulation_mode == 0:
+            self.model.host = config.host
+            self.model.port = config.port
+        else:
+            if config.host != self.mock_ctrl.host or config.port != self.mock_ctrl.port:
+                self.log.warning(
+                    f"Running in simulation mode ({self.simulation_mode}). "
+                    f"Overriding host/port from configuration file {config.host}:{config.port} "
+                    f"to {self.mock_ctrl.host}:{self.mock_ctrl.port}"
+                )
+            self.model.host = self.mock_ctrl.host
+            self.model.port = self.mock_ctrl.port
 
         self.model.connection_timeout = config.connection_timeout
         self.model.read_timeout = config.response_timeout
