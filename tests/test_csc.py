@@ -57,6 +57,11 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 timeout=BASE_TIMEOUT
             )
 
+            with self.assertRaises(salobj.AckError):
+                await self.remote.cmd_changeFilter.set_start(
+                    filter=0, name="bad_filter_name", timeout=LONG_TIMEOUT
+                )
+
             for i, filter_name in enumerate(set_applied.filterNames.split(",")):
 
                 filter_id = i
@@ -168,6 +173,11 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             set_applied = await self.remote.evt_settingsAppliedValues.aget(
                 timeout=BASE_TIMEOUT
             )
+
+            with self.assertRaises(salobj.AckError):
+                await self.remote.cmd_changeDisperser.set_start(
+                    disperser=0, name="bad_disperser_name", timeout=LONG_TIMEOUT
+                )
 
             for i, disperser_name in enumerate(set_applied.gratingNames.split(",")):
 
