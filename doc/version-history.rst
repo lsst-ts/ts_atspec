@@ -4,13 +4,18 @@
 Version History
 ===============
 
+v0.7.5
+------
+
+* Fix ATSPectrograph handling of bad filter/grating name rejection.
+
 v0.7.4
 ------
 
 * Implement new salobj config_schema mechanism and ditch schema path.
 * Fix issue when configuring CSC running in simulation mode.
   When running in simulation mode it still reads the configuration file but it must override the values of host and port to those used by the mock controller.
-  If the info provided by the config does not match it will send a warning message. 
+  If the info provided by the config does not match it will send a warning message.
 
 v0.7.3
 ------

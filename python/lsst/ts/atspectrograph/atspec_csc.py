@@ -352,14 +352,19 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_enabled("changeDisperser")
         self.assert_move_allowed("changeDisperser")
 
-        if len(data.name) > 0 and data.name in self.grating_info["grating_name"]:
+        gratings_name = self.grating_info["grating_name"]
+
+        if len(data.name) > 0:
+            if data.name not in self.grating_info["grating_name"]:
+                raise RuntimeError(
+                    f"Invalid disperser name={data.name}, must be one of {gratings_name}."
+                )
             disperser_name = data.name
             disperser_id = self.grating_info["grating_name"].index(disperser_name)
         elif 0 <= data.disperser < self.n_grating:
             disperser_id = data.disperser
             disperser_name = self.grating_info["grating_name"][disperser_id]
         else:
-            gratings_name = self.grating_info["grating_name"]
             raise RuntimeError(
                 f"Invalid input. disperser={data.disperser}, must be between "
                 f"0-{self.n_grating-1}. name={data.name}, must be one of {gratings_name}."
@@ -387,14 +392,19 @@ class CSC(salobj.ConfigurableCsc):
         self.assert_enabled("changeFilter")
         self.assert_move_allowed("changeFilter")
 
-        if len(data.name) > 0 and data.name in self.filter_info["filter_name"]:
+        filters_name = self.filter_info["filter_name"]
+
+        if len(data.name) > 0:
+            if data.name not in self.filter_info["filter_name"]:
+                raise RuntimeError(
+                    f"Invalid filter name={data.name}, must be one of {filters_name}."
+                )
             filter_name = data.name
             filter_id = self.filter_info["filter_name"].index(filter_name)
         elif 0 <= data.filter < self.n_filter:
             filter_id = data.filter
             filter_name = self.filter_info["filter_name"][filter_id]
         else:
-            filters_name = self.filter_info["filter_name"]
             raise RuntimeError(
                 f"Invalid input. filter={data.filter}, must be between"
                 f"0-{self.n_filter-1}. name={data.name}, must be one of {filters_name}."
