@@ -84,6 +84,11 @@ class CSC(salobj.ConfigurableCsc):
         else:
             self.mock_ctrl = None
 
+        self._report_position_options = dict(
+            reportedFilterPosition=self.report_filter_position,
+            reportedDisperserPosition=self.report_disperser_position,
+            reportedLinearStagePosition=self.report_linear_stage_position,
+        )
         # Add a remote for the ATCamera to monitor if it is exposing or not.
         # If it is, reject commands that would cause motion.
         self.atcam_remote = salobj.Remote(
@@ -588,51 +593,9 @@ class CSC(salobj.ConfigurableCsc):
                 and state[1] - position <= self.model.tolerance
             ):
 
-                if report == "reportedFilterPosition":
-                    getattr(self, f"evt_{report}").set_put(
-                        slot=int(state[1]),
-                        name=position_name,
-                        band=self.filter_info["band"][int(state[1])],
-                        centralWavelength=self.filter_info["central_wavelength_filter"][
-                            state[1]
-                        ],
-                        focusOffset=self.filter_info["offset_focus_filter"][
-                            int(state[1])
-                        ],
-                        pointingOffsets=[
-                            self.filter_info["offset_pointing_filter"]["x"][
-                                int(state[1])
-                            ],
-                            self.filter_info["offset_pointing_filter"]["y"][
-                                int(state[1])
-                            ],
-                        ],
-                        force_output=True,
-                    )
-                elif report == "reportedDisperserPosition":
-                    getattr(self, f"evt_{report}").set_put(
-                        slot=int(state[1]),
-                        name=position_name,
-                        band=self.grating_info["band"][int(state[1])],
-                        focusOffset=self.grating_info["offset_focus_grating"][
-                            int(state[1])
-                        ],
-                        pointingOffsets=[
-                            self.grating_info["offset_pointing_grating"]["x"][
-                                int(state[1])
-                            ],
-                            self.grating_info["offset_pointing_grating"]["y"][
-                                int(state[1])
-                            ],
-                        ],
-                        force_output=True,
-                    )
-                else:
-                    # This is for reportedLinearStagePosition since it's
-                    # the only topic with a position attribute
-                    getattr(self, f"evt_{report}").set_put(
-                        position=state[1], force_output=True
-                    )
+                self._report_position_options[report](
+                    position=state[1], position_name=position_name
+                )
 
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
@@ -933,3 +896,64 @@ class CSC(salobj.ConfigurableCsc):
             )
 
         return n_info[0]
+
+    def report_filter_position(self, position, position_name):
+        """Report the filter wheel position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedFilterPosition.set_put(
+            slot=int(position),
+            name=position_name,
+            band=self.filter_info["band"][int(position)],
+            centralWavelength=self.filter_info["central_wavelength_filter"][
+                int(position)
+            ],
+            focusOffset=self.filter_info["offset_focus_filter"][int(position)],
+            pointingOffsets=[
+                self.filter_info["offset_pointing_filter"]["x"][int(position)],
+                self.filter_info["offset_pointing_filter"]["y"][int(position)],
+            ],
+            force_output=True,
+        )
+
+    def report_disperser_position(self, position, position_name):
+        """Report the disperser wheel position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedDisperserPosition.set_put(
+            slot=int(position),
+            name=position_name,
+            band=self.grating_info["band"][int(position)],
+            focusOffset=self.grating_info["offset_focus_grating"][int(position)],
+            pointingOffsets=[
+                self.grating_info["offset_pointing_grating"]["x"][int(position)],
+                self.grating_info["offset_pointing_grating"]["y"][int(position)],
+            ],
+            force_output=True,
+        )
+
+    def report_linear_stage_position(self, position, position_name):
+        """Report the linear stage position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedLinearStagePosition.set_put(
+            position=position, force_output=True
+        )
