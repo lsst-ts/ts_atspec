@@ -4,6 +4,12 @@
 Version History
 ===============
 
+v0.7.6
+------
+
+* Fix reporting filter, grating and linear stage state.
+* Minor improvements to MockSpectrographController.
+
 v0.7.5
 ------
 
