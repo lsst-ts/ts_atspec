@@ -195,6 +195,8 @@ class CSC(salobj.ConfigurableCsc):
             # range.
             state = await self.model.query_gs_status(self.want_connection)
             self.log.debug(f"query_gs_status: {state}")
+
+            self.evt_lsState.set_put(state=state[0], force_output=True)
             if state[1] < 0.0:
                 self.log.warning("Linear stage out of range. Homing.")
                 await self.home_element(
@@ -220,6 +222,7 @@ class CSC(salobj.ConfigurableCsc):
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
 
+            self.evt_fwState.set_put(state=state[0], force_output=True)
             self.evt_reportedFilterPosition.set_put(
                 slot=int(state[1]),
                 name=self.filter_info["filter_name"][int(state[1])],
@@ -246,6 +249,7 @@ class CSC(salobj.ConfigurableCsc):
             # Check/Report Grating/Disperser Wheel position.
             state = await self.model.query_gw_status(self.want_connection)
             self.log.debug(f"query_gw_status: {state}")
+            self.evt_gwState.set_put(state=state[0], force_output=True)
             self.evt_reportedDisperserPosition.set_put(
                 slot=int(state[1]),
                 name=self.grating_info["grating_name"][int(state[1])],
@@ -548,36 +552,36 @@ class CSC(salobj.ConfigurableCsc):
                 f"reportedDisperserPosition, but got {report}"
             )
 
-        p_state = await getattr(self.model, query)(self.want_connection)
-
-        moving_state = ATSpectrograph.Status.MOVING
-        not_in_position = ATSpectrograph.Status.NOTINPOSITION
+        state = await getattr(self.model, query)(self.want_connection)
+        getattr(self, f"evt_{report_state}").set_put(state=state[0])
 
         # Send command to the controller. Limit is checked by model.
-        if p_state[0] == ATSpectrograph.Status.STATIONARY:
-            getattr(self, f"evt_{report_state}").set_put(state=moving_state)
+        if state[0] == ATSpectrograph.Status.STATIONARY:
+            getattr(self, f"evt_{report_state}").set_put(state=state[0])
             try:
                 await getattr(self.model, move)(position)
             except Exception as e:
-                getattr(self, f"evt_{report_state}").set_put(state=not_in_position)
+                getattr(self, f"evt_{report_state}").set_put(
+                    state=ATSpectrograph.Status.NOTINPOSITION
+                )
                 raise e
             if position_name is None:
                 # this will be for the linear stage only since it's the only
                 # topic with a position attribute
-                getattr(self, f"evt_{report}").set_put(position=p_state[1])
+                getattr(self, f"evt_{report}").set_put(position=state[1])
             getattr(self, f"evt_{inposition}").set_put(inPosition=False)
         else:
-            getattr(self, f"evt_{report_state}").set_put(state=p_state[0])
-            raise RuntimeError(f"Cannot change position. Current state is {p_state}")
+            raise RuntimeError(
+                f"Cannot change position. Current state is {ATSpectrograph.Status(state)!r}, "
+                f"expected {ATSpectrograph.Status.STATIONARY!r}."
+            )
 
         # Need to wait for command to complete
         start_time = time.time()
         while True:
             state = await getattr(self.model, query)(self.want_connection)
 
-            if p_state[0] != state[0]:
-                getattr(self, f"evt_{report_state}").set_put(state=state[0])
-                p_state = state
+            getattr(self, f"evt_{report_state}").set_put(state=state[0])
 
             if (
                 state[0] == ATSpectrograph.Status.STATIONARY
