@@ -1,12 +1,9 @@
 __all__ = ["MockSpectrographController"]
 
 import asyncio
-
-# import enum
-# import functools
 import logging
 
-# import time
+import numpy as np
 
 
 class MockSpectrographController:
@@ -27,6 +24,7 @@ class MockSpectrographController:
         self._server = None
 
         self.wait_time = 1.0
+        self.wait_time_move = 5.0
 
         self.states = ["I", "M", "S", "X"]
         self.error = ["N", "B", "I", "T"]
@@ -48,6 +46,8 @@ class MockSpectrographController:
         self._ls_err = 0
 
         self.ls_limit = (0, 1000)
+        self.ls_step = 10
+        self.ls_step_time = 0.2
 
         self._cmds = {
             "!XXX": None,
@@ -187,32 +187,48 @@ class MockSpectrographController:
         try:
             new_pos = int(val)
             if self.fw_limit[0] <= new_pos <= self.fw_limit[1]:
-                self._fw_state = 1
-                self._fw_pos = 3
-                await asyncio.sleep(self.wait_time)
-                self._fw_state = 2
-                self._fw_pos = new_pos
+                asyncio.create_task(self._execute_fw_move(new_pos))
                 return " ".encode()
             else:
                 return "Invalid Argument"
         except Exception:
             return "?Unknown"
 
+    async def _execute_fw_move(self, new_position):
+        """Execute move filter wheel."""
+        if self._fw_pos != new_position:
+            self.log.info(f"Moving filter wheel: {self._fw_pos} -> {new_position}.")
+            self._fw_state = 1
+            self._fw_pos = 3
+            await asyncio.sleep(self.wait_time_move)
+            self._fw_state = 2
+            self._fw_pos = new_position
+        else:
+            self.log.info(f"Filter wheel already in position {new_position}.")
+
     async def grm(self, val):
         """Move grating wheel."""
         try:
             new_pos = int(val)
             if self.gw_limit[0] <= new_pos <= self.gw_limit[1]:
-                self._gw_state = 1
-                self._gw_pos = 3
-                await asyncio.sleep(self.wait_time)
-                self._gw_state = 2
-                self._gw_pos = new_pos
+                asyncio.create_task(self._execute_gw_move(new_pos))
                 return " ".encode()
             else:
                 return "Invalid Argument"
         except Exception:
             return "?Unknown"
+
+    async def _execute_gw_move(self, new_position):
+        """Execute move grating wheel."""
+        if self._gw_pos != new_position:
+            self.log.info(f"Moving grating wheel: {self._gw_pos} -> {new_position}.")
+            self._gw_state = 1
+            self._gw_pos = 3
+            await asyncio.sleep(self.wait_time_move)
+            self._gw_state = 2
+            self._gw_pos = new_position
+        else:
+            self.log.info(f"Grating wheel already in position {new_position}")
 
     async def lsm(self, val):
         """Move linear stage."""
@@ -220,13 +236,24 @@ class MockSpectrographController:
         try:
             new_pos = float(val)
             if self.ls_limit[0] <= new_pos <= self.ls_limit[1]:
-                self._ls_state = 1
-                self._ls_pos = 3
-                await asyncio.sleep(self.wait_time)
-                self._ls_state = 2
-                self._ls_pos = new_pos
+                asyncio.create_task(self._execute_ls_move(new_pos))
                 return " ".encode()
             else:
                 return "Invalid Argument"
         except Exception:
             return "?Unknown"
+
+    async def _execute_ls_move(self, new_position):
+        """Execute move grating wheel."""
+        if self._ls_pos != new_position:
+            self.log.info(f"Moving linear stage: {self._ls_pos} -> {new_position}.")
+            self._ls_state = 1
+            step = self.ls_step * (1.0 if new_position > self._ls_pos else -1.0)
+            for current_position in np.arange(self._ls_pos, new_position, step):
+                self.log.debug(f"linear stage position: {current_position}")
+                self._ls_pos = current_position
+                await asyncio.sleep(self.ls_step_time)
+            self._ls_pos = new_position
+            self._ls_state = 2
+        else:
+            self.log.info(f"Linear stage already in position {new_position}")
