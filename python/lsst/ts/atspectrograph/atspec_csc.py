@@ -604,6 +604,10 @@ class CSC(salobj.ConfigurableCsc):
                     "Change position timed out trying to move to "
                     f"position {position}."
                 )
+            elif report == "reportedLinearStagePosition":
+                self.report_linear_stage_position(
+                    position=state[1], position_name=position_name
+                )
 
             await asyncio.sleep(0.5)
 
