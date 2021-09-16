@@ -4,6 +4,14 @@
 Version History
 ===============
 
+v0.7.6
+------
+
+* Fix reporting filter, grating and linear stage state.
+* Minor improvements to MockSpectrographController.
+* Refactor the way position is reported to use a dictionary instead of an if statement.
+* Report linear stage position while moving.
+
 v0.7.5
 ------
 

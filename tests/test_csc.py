@@ -1,8 +1,10 @@
 import asyncio
 import pathlib
+import logging
 import unittest
 
 from lsst.ts import salobj
+from lsst.ts.idl.enums.ATSpectrograph import Status
 
 from lsst.ts.atspectrograph.atspec_csc import CSC
 
@@ -13,6 +15,14 @@ TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "c
 
 
 class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.log = logging.getLogger("TestATSpecCSC")
+
+    def setUp(self) -> None:
+        self.state_published = set()
+        self.state_published_last = None
+
     def basic_make_csc(self, initial_state, config_dir, simulation_mode):
         return CSC(
             initial_state=initial_state,
@@ -37,6 +47,17 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         async with self.make_csc(
             initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=1
         ):
+            events_to_check = {
+                self.remote.evt_reportedLinearStagePosition,
+                self.remote.evt_lsState,
+                self.remote.evt_reportedFilterPosition,
+                self.remote.evt_fwState,
+                self.remote.evt_reportedDisperserPosition,
+                self.remote.evt_gwState,
+            }
+            for event in events_to_check:
+                event.flush()
+
             await self.check_standard_state_transitions(
                 enabled_commands=(
                     "changeDisperser",
@@ -46,6 +67,9 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     "stopAllAxes",
                 ),
             )
+
+            for event in events_to_check:
+                await self.assert_next_sample(event)
 
     async def test_changeFilter(self):
 
@@ -70,6 +94,12 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
 
                     self.remote.evt_reportedFilterPosition.flush()
                     self.remote.evt_filterInPosition.flush()
+                    self.remote.evt_fwState.callback = self.monitor_state_callback
+
+                    fpos_initial = await self.remote.evt_reportedFilterPosition.aget(
+                        timeout=BASE_TIMEOUT
+                    )
+
                     await self.remote.cmd_changeFilter.set_start(
                         filter=0, name=filter_name, timeout=LONG_TIMEOUT
                     )
@@ -81,12 +111,33 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     inpos2 = await self.remote.evt_filterInPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
+                    fpos = await self.remote.evt_reportedFilterPosition.next(
+                        flush=False, timeout=BASE_TIMEOUT
+                    )
 
-                    fpos = self.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(fpos.name, filter_name)
                     self.assertEqual(fpos.slot, filter_id)
+
+                    if fpos_initial.slot == filter_id:
+                        self.log.debug(
+                            "Filter wheel already in position. No state change expected."
+                        )
+                        self.assertEqual(self.state_published_last, None)
+                    else:
+                        self.log.debug(
+                            "Filter wheel changed position. State change expected."
+                        )
+                        self.assertEqual(self.state_published_last, Status.STATIONARY)
+
+                    if len(self.state_published) > 0:
+                        self.log.info(
+                            "Filter wheel state changed more than once. "
+                            "Checking that moving was published."
+                        )
+                        self.assertTrue(Status.MOVING in self.state_published)
+
                     # settingsApplied returns lists of floats, so have to set
                     # to the correct type
                     self.assertEqual(
@@ -97,6 +148,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         fpos.focusOffset,
                         float(set_applied.filterFocusOffsets.split(",")[i]),
                     )
+
                     # pointingOffsets are arrays, but in set_applied it's a
                     # string of arrays so these have to be split and converted
                     for n, offset in enumerate(fpos.pointingOffsets):
@@ -186,6 +238,12 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 with self.subTest(disperser_name=disperser_name):
                     self.remote.evt_reportedDisperserPosition.flush()
                     self.remote.evt_disperserInPosition.flush()
+                    self.remote.evt_gwState.callback = self.monitor_state_callback
+
+                    dpos_initial = await self.remote.evt_reportedDisperserPosition.aget(
+                        timeout=BASE_TIMEOUT
+                    )
+
                     await self.remote.cmd_changeDisperser.set_start(
                         disperser=0, name=disperser_name, timeout=LONG_TIMEOUT
                     )
@@ -202,6 +260,25 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(dpos.name, disperser_name)
                     self.assertEqual(dpos.slot, disperser_id)
+
+                    if dpos_initial.slot == disperser_id:
+                        self.log.debug(
+                            "Disperser wheel already in position. No state change expected."
+                        )
+                        self.assertEqual(self.state_published_last, None)
+                    else:
+                        self.log.debug(
+                            "Disperser wheel changed position. State change expected."
+                        )
+                        self.assertEqual(self.state_published_last, Status.STATIONARY)
+
+                    if len(self.state_published) > 0:
+                        self.log.info(
+                            "Disperser wheel state changed more than once. "
+                            "Checking that moving was published."
+                        )
+                        self.assertTrue(Status.MOVING in self.state_published)
+
                     # settingsApplied returns lists of floats, so have to set
                     # to the correct type position comes back with some
                     # numerical precision issue, looks like float is converted
@@ -222,8 +299,10 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         )
 
                 with self.subTest(disperser_id=disperser_id):
+
                     self.remote.evt_reportedDisperserPosition.flush()
                     self.remote.evt_disperserInPosition.flush()
+
                     await self.remote.cmd_changeDisperser.set_start(
                         disperser=disperser_id, name="", timeout=LONG_TIMEOUT
                     )
@@ -270,8 +349,18 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
 
             for ls_pos in [0.0, 100, 500, 900, 1000]:
                 with self.subTest(ls_pos=ls_pos):
+
                     self.remote.evt_reportedLinearStagePosition.flush()
                     self.remote.evt_linearStageInPosition.flush()
+
+                    lpos_initial = (
+                        await self.remote.evt_reportedLinearStagePosition.aget(
+                            timeout=BASE_TIMEOUT
+                        )
+                    )
+
+                    self.remote.evt_lsState.callback = self.monitor_state_callback
+
                     await self.remote.cmd_moveLinearStage.set_start(
                         distanceFromHome=ls_pos, timeout=LONG_TIMEOUT
                     )
@@ -281,10 +370,30 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     inpos2 = await self.remote.evt_linearStageInPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
-                    lpos = self.remote.evt_reportedLinearStagePosition.get()
+                    lpos = await self.remote.evt_reportedLinearStagePosition.aget(
+                        timeout=BASE_TIMEOUT
+                    )
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
                     self.assertEqual(lpos.position, ls_pos)
+
+                    if lpos_initial.position != ls_pos:
+                        self.log.debug(
+                            "Linear stage already in position. No state change expected."
+                        )
+                        self.assertEqual(self.state_published_last, Status.STATIONARY)
+                    else:
+                        self.log.debug(
+                            "Linear stage already in position. Should not have any state change."
+                        )
+                        self.assertEqual(self.state_published_last, None)
+
+                    if len(self.state_published) > 0:
+                        self.log.info(
+                            "Linear stage state changed more than once. "
+                            "Checking that moving was published."
+                        )
+                        self.assertTrue(Status.MOVING in self.state_published)
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
@@ -445,6 +554,10 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             with self.subTest(config=config):
                 with self.assertRaises(RuntimeError):
                     CSC.check_fg_config(bad_config[config])
+
+    def monitor_state_callback(self, data):
+        self.state_published_last = data.state
+        self.state_published.add(data.state)
 
 
 if __name__ == "__main__":
