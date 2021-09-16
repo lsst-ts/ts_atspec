@@ -84,6 +84,11 @@ class CSC(salobj.ConfigurableCsc):
         else:
             self.mock_ctrl = None
 
+        self._report_position_options = dict(
+            reportedFilterPosition=self.report_filter_position,
+            reportedDisperserPosition=self.report_disperser_position,
+            reportedLinearStagePosition=self.report_linear_stage_position,
+        )
         # Add a remote for the ATCamera to monitor if it is exposing or not.
         # If it is, reject commands that would cause motion.
         self.atcam_remote = salobj.Remote(
@@ -195,6 +200,8 @@ class CSC(salobj.ConfigurableCsc):
             # range.
             state = await self.model.query_gs_status(self.want_connection)
             self.log.debug(f"query_gs_status: {state}")
+
+            self.evt_lsState.set_put(state=state[0], force_output=True)
             if state[1] < 0.0:
                 self.log.warning("Linear stage out of range. Homing.")
                 await self.home_element(
@@ -220,6 +227,7 @@ class CSC(salobj.ConfigurableCsc):
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
 
+            self.evt_fwState.set_put(state=state[0], force_output=True)
             self.evt_reportedFilterPosition.set_put(
                 slot=int(state[1]),
                 name=self.filter_info["filter_name"][int(state[1])],
@@ -246,6 +254,7 @@ class CSC(salobj.ConfigurableCsc):
             # Check/Report Grating/Disperser Wheel position.
             state = await self.model.query_gw_status(self.want_connection)
             self.log.debug(f"query_gw_status: {state}")
+            self.evt_gwState.set_put(state=state[0], force_output=True)
             self.evt_reportedDisperserPosition.set_put(
                 slot=int(state[1]),
                 name=self.grating_info["grating_name"][int(state[1])],
@@ -548,87 +557,45 @@ class CSC(salobj.ConfigurableCsc):
                 f"reportedDisperserPosition, but got {report}"
             )
 
-        p_state = await getattr(self.model, query)(self.want_connection)
-
-        moving_state = ATSpectrograph.Status.MOVING
-        not_in_position = ATSpectrograph.Status.NOTINPOSITION
+        state = await getattr(self.model, query)(self.want_connection)
+        getattr(self, f"evt_{report_state}").set_put(state=state[0])
 
         # Send command to the controller. Limit is checked by model.
-        if p_state[0] == ATSpectrograph.Status.STATIONARY:
-            getattr(self, f"evt_{report_state}").set_put(state=moving_state)
+        if state[0] == ATSpectrograph.Status.STATIONARY:
+            getattr(self, f"evt_{report_state}").set_put(state=state[0])
             try:
                 await getattr(self.model, move)(position)
             except Exception as e:
-                getattr(self, f"evt_{report_state}").set_put(state=not_in_position)
+                getattr(self, f"evt_{report_state}").set_put(
+                    state=ATSpectrograph.Status.NOTINPOSITION
+                )
                 raise e
             if position_name is None:
                 # this will be for the linear stage only since it's the only
                 # topic with a position attribute
-                getattr(self, f"evt_{report}").set_put(position=p_state[1])
+                getattr(self, f"evt_{report}").set_put(position=state[1])
             getattr(self, f"evt_{inposition}").set_put(inPosition=False)
         else:
-            getattr(self, f"evt_{report_state}").set_put(state=p_state[0])
-            raise RuntimeError(f"Cannot change position. Current state is {p_state}")
+            raise RuntimeError(
+                f"Cannot change position. Current state is {ATSpectrograph.Status(state)!r}, "
+                f"expected {ATSpectrograph.Status.STATIONARY!r}."
+            )
 
         # Need to wait for command to complete
         start_time = time.time()
         while True:
             state = await getattr(self.model, query)(self.want_connection)
 
-            if p_state[0] != state[0]:
-                getattr(self, f"evt_{report_state}").set_put(state=state[0])
-                p_state = state
+            getattr(self, f"evt_{report_state}").set_put(state=state[0])
 
             if (
                 state[0] == ATSpectrograph.Status.STATIONARY
                 and state[1] - position <= self.model.tolerance
             ):
 
-                if report == "reportedFilterPosition":
-                    getattr(self, f"evt_{report}").set_put(
-                        slot=int(state[1]),
-                        name=position_name,
-                        band=self.filter_info["band"][int(state[1])],
-                        centralWavelength=self.filter_info["central_wavelength_filter"][
-                            state[1]
-                        ],
-                        focusOffset=self.filter_info["offset_focus_filter"][
-                            int(state[1])
-                        ],
-                        pointingOffsets=[
-                            self.filter_info["offset_pointing_filter"]["x"][
-                                int(state[1])
-                            ],
-                            self.filter_info["offset_pointing_filter"]["y"][
-                                int(state[1])
-                            ],
-                        ],
-                        force_output=True,
-                    )
-                elif report == "reportedDisperserPosition":
-                    getattr(self, f"evt_{report}").set_put(
-                        slot=int(state[1]),
-                        name=position_name,
-                        band=self.grating_info["band"][int(state[1])],
-                        focusOffset=self.grating_info["offset_focus_grating"][
-                            int(state[1])
-                        ],
-                        pointingOffsets=[
-                            self.grating_info["offset_pointing_grating"]["x"][
-                                int(state[1])
-                            ],
-                            self.grating_info["offset_pointing_grating"]["y"][
-                                int(state[1])
-                            ],
-                        ],
-                        force_output=True,
-                    )
-                else:
-                    # This is for reportedLinearStagePosition since it's
-                    # the only topic with a position attribute
-                    getattr(self, f"evt_{report}").set_put(
-                        position=state[1], force_output=True
-                    )
+                self._report_position_options[report](
+                    position=state[1], position_name=position_name
+                )
 
                 getattr(self, f"evt_{inposition}").set_put(inPosition=True)
                 break
@@ -636,6 +603,10 @@ class CSC(salobj.ConfigurableCsc):
                 raise TimeoutError(
                     "Change position timed out trying to move to "
                     f"position {position}."
+                )
+            elif report == "reportedLinearStagePosition":
+                self.report_linear_stage_position(
+                    position=state[1], position_name=position_name
                 )
 
             await asyncio.sleep(0.5)
@@ -929,3 +900,64 @@ class CSC(salobj.ConfigurableCsc):
             )
 
         return n_info[0]
+
+    def report_filter_position(self, position, position_name):
+        """Report the filter wheel position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedFilterPosition.set_put(
+            slot=int(position),
+            name=position_name,
+            band=self.filter_info["band"][int(position)],
+            centralWavelength=self.filter_info["central_wavelength_filter"][
+                int(position)
+            ],
+            focusOffset=self.filter_info["offset_focus_filter"][int(position)],
+            pointingOffsets=[
+                self.filter_info["offset_pointing_filter"]["x"][int(position)],
+                self.filter_info["offset_pointing_filter"]["y"][int(position)],
+            ],
+            force_output=True,
+        )
+
+    def report_disperser_position(self, position, position_name):
+        """Report the disperser wheel position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedDisperserPosition.set_put(
+            slot=int(position),
+            name=position_name,
+            band=self.grating_info["band"][int(position)],
+            focusOffset=self.grating_info["offset_focus_grating"][int(position)],
+            pointingOffsets=[
+                self.grating_info["offset_pointing_grating"]["x"][int(position)],
+                self.grating_info["offset_pointing_grating"]["y"][int(position)],
+            ],
+            force_output=True,
+        )
+
+    def report_linear_stage_position(self, position, position_name):
+        """Report the linear stage position.
+
+        Parameters
+        ----------
+        position : `int`
+            Position of the element.
+        position_name : `str`
+            Name of the position.
+        """
+        self.evt_reportedLinearStagePosition.set_put(
+            position=position, force_output=True
+        )
