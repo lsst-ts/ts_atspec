@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.7.7
+------
+
+* Fix salobj run dependency in conda recipe.
+
 v0.7.6
 ------
 
