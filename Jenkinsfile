@@ -10,103 +10,116 @@ properties(
     disableConcurrentBuilds()
     ]
 )
+
 pipeline {
-    agent any
+
+    agent {
+        // Use the docker to assign the Python version.
+        // Use the label to assign the node to run the test.
+        // It is recommended by SQUARE to not add the label
+        docker {
+            alwaysPull true
+            image 'lsstts/develop-env:develop'
+            args "-u root --entrypoint=''"
+        }
+    }
+
     environment {
-        container_name = "c_${BUILD_ID}_${JENKINS_NODE_COOKIE}"
-        user_ci = credentials('lsst-io')
+        // XML report path
         XML_REPORT="jenkinsReport/report.xml"
+        // Module name used in the pytest coverage analysis
+        MODULE_NAME="lsst.ts.atspectrograph"
+        user_ci = credentials('lsst-io')
+        LTD_USERNAME="${user_ci_USR}"
+        LTD_PASSWORD="${user_ci_PSW}"
         work_branches = "${GIT_BRANCH} ${CHANGE_BRANCH} develop"
     }
 
     stages {
-        stage("Pulling image.") {
+        stage ('Install Requirements And Update Branches') {
             steps {
-                script {
+                // When using the docker container, we need to change
+                // the HOME path to WORKSPACE to have the authority
+                // to install the packages.
+                withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-                    docker pull lsstts/salobj:master
+                        source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
+                        cd /home/saluser/repos/ts_utils
+                        /home/saluser/.checkout_repo.sh ${work_branches}
+                        git pull
+                        cd /home/saluser/repos/ts_xml
+                        /home/saluser/.checkout_repo.sh ${work_branches}
+                        git pull
+                        cd /home/saluser/repos/ts_salobj
+                        /home/saluser/.checkout_repo.sh ${work_branches}
+                        git pull
+                        cd /home/saluser/repos/ts_idl
+                        /home/saluser/.checkout_repo.sh ${work_branches}
+                        git pull
+                        cd /home/saluser/repos/ts_config_latiss
+                        /home/saluser/.checkout_repo.sh ${work_branches}
+                        git pull
+                        make_idl_files.py ATSpectrograph ATCamera
                     """
                 }
             }
         }
-        stage("Start container") {
-            steps {
-                script {
-                    sh """
-                    chmod -R a+rw \${WORKSPACE}
-                    container=\$(docker run -v \${WORKSPACE}:/home/saluser/repo/ -td --rm --name \${container_name} -e LTD_USERNAME=\${user_ci_USR} -e LTD_PASSWORD=\${user_ci_PSW} lsstts/salobj:master)
 
+        stage('Unit Tests and Coverage Analysis') {
+            steps {
+                // Direct the HOME to WORKSPACE for pip to get the
+                // installed library.
+                // 'PATH' can only be updated in a single shell block.
+                // We can not update PATH in 'environment' block.
+                // Pytest needs to export the junit report.
+                withEnv(["HOME=${env.WORKSPACE}"]) {
+                    sh """
+                        source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
+                        setup -k -r .
+                        pytest --cov-report html --cov=${env.MODULE_NAME} --junitxml=${env.XML_REPORT}
                     """
                 }
             }
         }
-        stage("Clone/Setup configuration file") {
+        stage('Build and Upload Documentation') {
             steps {
-                script {
+                withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd /home/saluser/repos/ts_config_latiss && /home/saluser/.checkout_repo.sh \${work_branches} && git pull"
-                    """
-                }
-            }
-        }
-        stage("Checkout xml") {
-            steps {
-                script {
-                    sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd /home/saluser/repos/ts_xml && /home/saluser/.checkout_repo.sh \${work_branches}\"
-                    """
-                }
-            }
-        }
-        stage("Build IDL files") {
-            steps {
-                script {
-                    sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && setup ts_sal -t current && make_idl_files.py ATSpectrograph ATCamera\"
-                    """
-                }
-            }
-        }
-        stage("Running tests") {
-            steps {
-                script {
-                    sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && eups declare -r . -t saluser && setup ts_atspectrograph -t saluser && pytest --junitxml=\${XML_REPORT}\"
-                    """
-                }
-            }
-        }
-        stage("Build and Upload documentation") {
-            steps {
-                script {
-                    sh """
-                    docker exec -u saluser \${container_name} sh -c \"source ~/.setup.sh && cd repo && pip install --no-deps --ignore-installed -e . && package-docs build && ltd upload --product ts-atspectrograph --git-ref \${GIT_BRANCH} --dir doc/_build/html\"
+                        source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
+                        pip install .
+                        package-docs build
+                        ltd upload --product ts-atspectrograph --git-ref ${GIT_BRANCH} --dir doc/_build/html
                     """
                 }
             }
         }
     }
+
     post {
         always {
+            // Change the ownership of workspace to Jenkins for the clean up
+            // This is a "work around" method
+            withEnv(["HOME=${env.WORKSPACE}"]) {
+                sh 'chown -R 1003:1003 ${HOME}/'
+            }
+
             // The path of xml needed by JUnit is relative to
             // the workspace.
-            // junit 'jenkinsReport/*.xml'
+            junit 'jenkinsReport/*.xml'
 
             // Publish the HTML report
             publishHTML (target: [
                 allowMissing: false,
                 alwaysLinkToLastBuild: false,
                 keepAll: true,
-                reportDir: 'jenkinsReport/',
+                reportDir: 'htmlcov',
                 reportFiles: 'index.html',
                 reportName: "Coverage Report"
               ])
         }
+
         cleanup {
-            sh """
-                docker exec -u root --privileged \${container_name} sh -c \"chmod -R a+rw /home/saluser/repo/ \"
-                docker stop \${container_name}
-            """
+            // clean up the workspace
             deleteDir()
         }
     }
