@@ -2,6 +2,7 @@ __all__ = ["MockSpectrographController"]
 
 import asyncio
 import logging
+import typing
 
 import numpy as np
 
@@ -13,15 +14,14 @@ class MockSpectrographController:
     ----------
     port : int
         TCP/IP port
-
     """
 
-    def __init__(self, port):
+    def __init__(self, port: int) -> None:
         self.port = port
 
         self.log = logging.getLogger("MockATSpectrographController")
 
-        self._server = None
+        self._server: typing.Optional[asyncio.base_events.Server] = None
 
         self.wait_time = 1.0
         self.wait_time_move = 5.0
@@ -46,10 +46,15 @@ class MockSpectrographController:
         self._ls_err = 0
 
         self.ls_limit = (0, 1000)
-        self.ls_step = 10
+        self.ls_step = 1
         self.ls_step_time = 0.2
 
-        self._cmds = {
+        self._cmds: typing.Dict[
+            str,
+            typing.Optional[
+                typing.Callable[[str], typing.Coroutine[typing.Any, typing.Any, bytes]]
+            ],
+        ] = {
             "!XXX": None,
             "!LDC": None,
             "?FWS": self.fws,
@@ -67,14 +72,14 @@ class MockSpectrographController:
         }
 
     @property
-    def initialized(self):
+    def initialized(self) -> bool:
         return self._server is not None
 
     @property
-    def host(self):
+    def host(self) -> str:
         return "127.0.0.1"
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the TCP/IP server, set start_task Done
         and start the command loop.
         """
@@ -86,8 +91,14 @@ class MockSpectrographController:
             self.cmd_loop, host=self.host, port=self.port
         )
 
-    async def stop(self, timeout=5):
-        """Stop the TCP/IP server."""
+    async def stop(self, timeout: float = 5.0) -> None:
+        """Stop the TCP/IP server.
+
+        Parameters
+        ----------
+        timeout : float
+            Timeout to wait server to stop (in seconds).
+        """
         if self._server is None:
             return
 
@@ -96,7 +107,19 @@ class MockSpectrographController:
         server.close()
         await asyncio.wait_for(server.wait_closed(), timeout=timeout)
 
-    async def cmd_loop(self, reader, writer):
+    async def cmd_loop(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        """Command loop.
+
+        Parameters
+        ----------
+        reader : asyncio.StreamReader
+            Stream reader.
+
+        writer : asyncio.StreamWriter
+            Stream writer.
+        """
         self.log.info("cmd_loop begins")
 
         # Write welcome message
@@ -105,8 +128,7 @@ class MockSpectrographController:
 
         while True:
             # Write string specifing that server is ready
-            line = await reader.readline()
-            line = line.decode()
+            line = (await reader.readline()).decode()
             if not line:
                 # connection lost; close the writer and exit the loop
                 writer.close()
@@ -116,7 +138,9 @@ class MockSpectrographController:
             if line:
                 try:
                     if line[:4] in self._cmds:
-                        reply = await self._cmds[line[:4]](line[4:])
+                        cmd = self._cmds[line[:4]]
+                        assert callable(cmd)
+                        reply = await cmd(line[4:])
                         self.log.debug(f"reply: {reply!r}")
                         writer.write(reply)
                         await writer.drain()
@@ -130,23 +154,47 @@ class MockSpectrographController:
                 writer.write(">".encode())
                 await writer.drain()
 
-    async def fws(self, val):
-        """return filter wheel status"""
+    async def fws(self, val: str) -> bytes:
+        """return filter wheel status
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         await asyncio.sleep(self.wait_time)
         return f" {self.states[self._fw_state]} {self._fw_pos} {self.error[self._fw_err]}\r\n".encode()
 
-    async def grs(self, val):
-        """return grating wheel status"""
+    async def grs(self, val: str) -> bytes:
+        """return grating wheel status
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         await asyncio.sleep(self.wait_time)
         return f" {self.states[self._gw_state]} {self._gw_pos} {self.error[self._gw_err]}\r\n".encode()
 
-    async def lss(self, val):
-        """return linear stage status"""
+    async def lss(self, val: str) -> bytes:
+        """return linear stage status
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         await asyncio.sleep(self.wait_time)
         return f" {self.states[self._ls_state]} {self._ls_pos} {self.error[self._ls_err]}\r\n".encode()
 
-    async def fwi(self, val):
-        """home filter wheel"""
+    async def fwi(self, val: str) -> bytes:
+        """home filter wheel
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         self._fw_state = 0
         self._fw_pos = 0
         self._fw_err = 0
@@ -157,8 +205,14 @@ class MockSpectrographController:
 
         return " ".encode()
 
-    async def gwi(self, val):
-        """home filter wheel"""
+    async def gwi(self, val: str) -> bytes:
+        """home filter wheel.
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         self._gw_state = 0
         self._gw_pos = 0
         self._gw_err = 0
@@ -169,8 +223,14 @@ class MockSpectrographController:
 
         return " ".encode()
 
-    async def lsi(self, val):
-        """home linear stage"""
+    async def lsi(self, val: str) -> bytes:
+        """home linear stage.
+
+        Parameters
+        ----------
+        val : str
+            Ignored
+        """
         self._ls_state = 0
         self._ls_pos = 0
         self._ls_err = 0
@@ -181,8 +241,14 @@ class MockSpectrographController:
 
         return " ".encode()
 
-    async def fwm(self, val):
-        """Move filter wheel."""
+    async def fwm(self, val: str) -> bytes:
+        """Move filter wheel.
+
+        Parameters
+        ----------
+        val : str
+            Filter wheel position.
+        """
         self.log.debug(f"Received {val!r}")
         try:
             new_pos = int(val)
@@ -190,12 +256,18 @@ class MockSpectrographController:
                 asyncio.create_task(self._execute_fw_move(new_pos))
                 return " ".encode()
             else:
-                return "Invalid Argument"
+                return b"Invalid Argument"
         except Exception:
-            return "?Unknown"
+            return b"?Unknown"
 
-    async def _execute_fw_move(self, new_position):
-        """Execute move filter wheel."""
+    async def _execute_fw_move(self, new_position: int) -> None:
+        """Execute move filter wheel.
+
+        Parameters
+        ----------
+        new_position : int
+            New filter wheel position.
+        """
         if self._fw_pos != new_position:
             self.log.info(f"Moving filter wheel: {self._fw_pos} -> {new_position}.")
             self._fw_state = 1
@@ -206,20 +278,32 @@ class MockSpectrographController:
         else:
             self.log.info(f"Filter wheel already in position {new_position}.")
 
-    async def grm(self, val):
-        """Move grating wheel."""
+    async def grm(self, val: str) -> bytes:
+        """Move grating wheel.
+
+        Parameters
+        ----------
+        val : str
+            Grating position.
+        """
         try:
             new_pos = int(val)
             if self.gw_limit[0] <= new_pos <= self.gw_limit[1]:
                 asyncio.create_task(self._execute_gw_move(new_pos))
                 return " ".encode()
             else:
-                return "Invalid Argument"
+                return b"Invalid Argument"
         except Exception:
-            return "?Unknown"
+            return b"?Unknown"
 
-    async def _execute_gw_move(self, new_position):
-        """Execute move grating wheel."""
+    async def _execute_gw_move(self, new_position: int) -> None:
+        """Execute move grating wheel.
+
+        Parameters
+        ----------
+        new_position : int
+            New grating wheel position.
+        """
         if self._gw_pos != new_position:
             self.log.info(f"Moving grating wheel: {self._gw_pos} -> {new_position}.")
             self._gw_state = 1
@@ -230,8 +314,14 @@ class MockSpectrographController:
         else:
             self.log.info(f"Grating wheel already in position {new_position}")
 
-    async def lsm(self, val):
-        """Move linear stage."""
+    async def lsm(self, val: str) -> bytes:
+        """Move linear stage.
+
+        Parameters:
+        -----------
+        val : str
+            Linear stage position.
+        """
 
         try:
             new_pos = float(val)
@@ -239,12 +329,18 @@ class MockSpectrographController:
                 asyncio.create_task(self._execute_ls_move(new_pos))
                 return " ".encode()
             else:
-                return "Invalid Argument"
+                return b"Invalid Argument"
         except Exception:
-            return "?Unknown"
+            return b"?Unknown"
 
-    async def _execute_ls_move(self, new_position):
-        """Execute move grating wheel."""
+    async def _execute_ls_move(self, new_position: float) -> None:
+        """Execute move linear stage.
+
+        Parameters
+        ----------
+        new_position : float
+            New linear stage positon.
+        """
         if self._ls_pos != new_position:
             self.log.info(f"Moving linear stage: {self._ls_pos} -> {new_position}.")
             self._ls_state = 1
