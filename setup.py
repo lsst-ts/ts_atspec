@@ -13,6 +13,8 @@ setuptools.setup(
         "write_to": "python/lsst/ts/atspectrograph/version.py",
         "write_to_template": scm_version_template,
     },
+    setup_requires=["setuptools_scm"],
+    extras_require={"dev": ["documenteer[pipelines]"]},
     package_dir={"": "python"},
     packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
