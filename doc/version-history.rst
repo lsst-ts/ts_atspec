@@ -4,6 +4,12 @@
 Version History
 ===============
 
+v0.8.0
+------
+
+* Upgrade CSC to salobj 7.
+* Modernize Jenkinsfile for CI job.
+
 v0.7.7
 ------
 

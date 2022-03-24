@@ -26,7 +26,7 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_atspec/blob/master/schema/ATSpectrograph.yaml
-title: ATSpectrograph v3
+title: ATSpectrograph v4
 description: Schema for ATSpectrograph configuration files
 type: object
 additionalProperties: false

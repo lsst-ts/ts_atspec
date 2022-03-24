@@ -2,6 +2,10 @@ import asyncio
 import pathlib
 import logging
 import unittest
+import typing
+import enum
+
+import numpy as np
 
 from lsst.ts import salobj
 from lsst.ts.idl.enums.ATSpectrograph import Status
@@ -20,17 +24,22 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         cls.log = logging.getLogger("TestATSpecCSC")
 
     def setUp(self) -> None:
-        self.state_published = set()
+        self.state_published: typing.Set[enum.Enum] = set()
         self.state_published_last = None
 
-    def basic_make_csc(self, initial_state, config_dir, simulation_mode):
+    def basic_make_csc(
+        self,
+        initial_state: typing.Union[salobj.sal_enums.State, int],
+        config_dir: typing.Union[str, pathlib.Path, None],
+        simulation_mode: int,
+    ) -> salobj.base_csc.BaseCsc:
         return CSC(
             initial_state=initial_state,
             config_dir=config_dir,
             simulation_mode=simulation_mode,
         )
 
-    async def test_standard_state_transitions(self):
+    async def test_standard_state_transitions(self) -> None:
         """Test standard CSC state transitions.
 
         The initial state is STANDBY.
@@ -71,7 +80,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             for event in events_to_check:
                 await self.assert_next_sample(event)
 
-    async def test_changeFilter(self):
+    async def test_changeFilter(self) -> None:
 
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
@@ -140,13 +149,15 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
 
                     # settingsApplied returns lists of floats, so have to set
                     # to the correct type
-                    self.assertEqual(
+                    self.assertAlmostEqual(
                         fpos.centralWavelength,
                         float(set_applied.filterCentralWavelengths.split(",")[i]),
+                        places=3,
                     )
-                    self.assertEqual(
+                    self.assertAlmostEqual(
                         fpos.focusOffset,
                         float(set_applied.filterFocusOffsets.split(",")[i]),
+                        places=3,
                     )
 
                     # pointingOffsets are arrays, but in set_applied it's a
@@ -158,7 +169,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n])
+                            offset, float(trimmed_pair.split(",")[n]), places=3
                         )
 
                 with self.subTest(filter_id=filter_id):
@@ -182,13 +193,15 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(fpos.slot, filter_id)
                     # settingsApplied returns lists of floats, so have to set
                     # to the correct type
-                    self.assertEqual(
+                    self.assertAlmostEqual(
                         fpos.centralWavelength,
                         float(set_applied.filterCentralWavelengths.split(",")[i]),
+                        places=3,
                     )
-                    self.assertEqual(
+                    self.assertAlmostEqual(
                         fpos.focusOffset,
                         float(set_applied.filterFocusOffsets.split(",")[i]),
+                        places=3,
                     )
                     for n, offset in enumerate(fpos.pointingOffsets):
                         # line below gives "[X,Y"
@@ -197,12 +210,12 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n])
+                            offset, float(trimmed_pair.split(",")[n]), places=3
                         )
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
-    async def test_changeDisperser(self):
+    async def test_changeDisperser(self) -> None:
 
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
@@ -286,6 +299,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertAlmostEqual(
                         dpos.focusOffset,
                         float(set_applied.gratingFocusOffsets.split(",")[i]),
+                        places=3,
                     )
 
                     for n, offset in enumerate(dpos.pointingOffsets):
@@ -295,7 +309,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n])
+                            offset, float(trimmed_pair.split(",")[n]), places=3
                         )
 
                 with self.subTest(disperser_id=disperser_id):
@@ -327,6 +341,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertAlmostEqual(
                         dpos.focusOffset,
                         float(set_applied.gratingFocusOffsets.split(",")[i]),
+                        places=3,
                     )
 
                     for n, offset in enumerate(dpos.pointingOffsets):
@@ -336,18 +351,26 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
                         self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n])
+                            offset, float(trimmed_pair.split(",")[n]), places=3
                         )
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
-    async def test_moveLinearStage(self):
+    async def test_moveLinearStage(self) -> None:
 
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
 
-            for ls_pos in [0.0, 100, 500, 900, 1000]:
+            self.monitor_state_callback(
+                await self.remote.evt_lsState.aget(timeout=BASE_TIMEOUT)
+            )
+
+            self.remote.evt_lsState.callback = self.monitor_state_callback
+
+            for ls_pos in np.linspace(
+                self.csc.model.min_pos, self.csc.model.max_pos, 5
+            ):
                 with self.subTest(ls_pos=ls_pos):
 
                     self.remote.evt_reportedLinearStagePosition.flush()
@@ -358,8 +381,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                             timeout=BASE_TIMEOUT
                         )
                     )
-
-                    self.remote.evt_lsState.callback = self.monitor_state_callback
 
                     await self.remote.cmd_moveLinearStage.set_start(
                         distanceFromHome=ls_pos, timeout=LONG_TIMEOUT
@@ -375,7 +396,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     )
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
-                    self.assertEqual(lpos.position, ls_pos)
+                    self.assertAlmostEqual(lpos.position, ls_pos, places=3)
 
                     if lpos_initial.position != ls_pos:
                         self.log.debug(
@@ -388,16 +409,18 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         )
                         self.assertEqual(self.state_published_last, None)
 
-                    if len(self.state_published) > 0:
+                    if len(self.state_published) > 1:
                         self.log.info(
                             "Linear stage state changed more than once. "
                             "Checking that moving was published."
                         )
                         self.assertTrue(Status.MOVING in self.state_published)
+                    else:
+                        self.assertTrue(Status.STATIONARY in self.state_published)
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
-    async def test_homeLinearStage(self):
+    async def test_homeLinearStage(self) -> None:
 
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
@@ -422,7 +445,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
-    def test_check_fg_config(self):
+    def test_check_fg_config(self) -> None:
 
         config_filter = {
             "filter_name": ["a", "b", "c", "d"],
@@ -555,9 +578,10 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(RuntimeError):
                     CSC.check_fg_config(bad_config[config])
 
-    def monitor_state_callback(self, data):
-        self.state_published_last = data.state
-        self.state_published.add(data.state)
+    def monitor_state_callback(self, data: salobj.type_hints.BaseMsgType) -> None:
+        self.state_published_last = Status(data.state)
+        self.state_published.add(Status(data.state))
+        self.log.debug(f"monitor_state_callback: {self.state_published_last!r}")
 
 
 if __name__ == "__main__":
