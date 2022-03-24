@@ -20,7 +20,7 @@ test:
     - ts-salobj {{ salobj_version }}
   source_files:
     - python
-    - bin.src
+    - bin
     - tests
     - setup.cfg
   commands:
