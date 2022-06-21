@@ -15,7 +15,7 @@ from .model import Model
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
 
-__all__ = ["CSC"]
+__all__ = ["CSC", "run_atspectrograph_csc"]
 
 HEALTH_LOOP_DIED = 1
 LS_ERROR = 2
@@ -975,3 +975,8 @@ class CSC(salobj.ConfigurableCsc):
         await self.evt_reportedLinearStagePosition.set_write(
             position=position, force_output=True
         )
+
+
+def run_atspectrograph_csc() -> None:
+    """Run the ATSpectrograph CSC from the command line."""
+    asyncio.run(CSC().amain(index=None))
