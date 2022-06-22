@@ -43,6 +43,7 @@ pipeline {
                 // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
+                        git config --global --add safe.directory "*"
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
                         cd /home/saluser/repos/ts_utils
                         /home/saluser/.checkout_repo.sh ${work_branches}
@@ -86,7 +87,7 @@ pipeline {
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
-                        pip install .
+                        pip install -e .
                         package-docs build
                         ltd upload --product ts-atspectrograph --git-ref ${GIT_BRANCH} --dir doc/_build/html
                     """

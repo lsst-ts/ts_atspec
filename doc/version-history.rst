@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.8.1
+------
+
+* Switch to ``pyproject.toml``.
+
 v0.8.0
 ------
 
