@@ -8,8 +8,9 @@ source:
 
 build:
   script: python -m pip install --no-deps --ignore-installed .
+  noarch: generic
   entry_points:
-    - run_atspectrograph_csc: lsst.ts.atspectrograph.atspec_csc:run_atspectrograph_csc
+    - run_atspectrograph_csc = lsst.ts.atspectrograph.atspec_csc:run_atspectrograph_csc
 
   script_env:
     - OSPL_HOME
