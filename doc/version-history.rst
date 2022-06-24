@@ -4,6 +4,16 @@
 Version History
 ===============
 
+v0.8.3
+------
+
+* Fix architecture for conda build.
+
+v0.8.2
+------
+
+* Fixes to correct packaging errors.
+
 v0.8.1
 ------
 
