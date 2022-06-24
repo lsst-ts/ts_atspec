@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-CondaPipeline(["ts_config_latiss"], "ts-atspec", "lsst.ts.atspectrograph")
+CondaPipeline(["ts_config_latiss"], "ts-atspec", "lsst.ts.atspectrograph", "noarch")
