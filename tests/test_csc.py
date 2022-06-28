@@ -39,6 +39,11 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             simulation_mode=simulation_mode,
         )
 
+    async def test_bin_script(self) -> None:
+        await self.check_bin_script(
+            name="ATSpectrograph", index=None, exe_name="run_atspectrograph_csc"
+        )
+
     async def test_standard_state_transitions(self) -> None:
         """Test standard CSC state transitions.
 
