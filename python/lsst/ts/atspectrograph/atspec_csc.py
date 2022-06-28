@@ -979,4 +979,4 @@ class CSC(salobj.ConfigurableCsc):
 
 def run_atspectrograph_csc() -> None:
     """Run the ATSpectrograph CSC from the command line."""
-    asyncio.run(CSC().amain(index=None))
+    asyncio.run(CSC.amain(index=None))
