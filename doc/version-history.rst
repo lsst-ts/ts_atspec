@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.8.4
+------
+
+* Fix run_atspectrograph_csc function.
+
 v0.8.3
 ------
 
