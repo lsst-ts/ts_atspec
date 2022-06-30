@@ -136,6 +136,14 @@ class CSC(salobj.ConfigurableCsc):
         if self.mock_ctrl is not None and not self.mock_ctrl.initialized:
             await self.mock_ctrl.start()
 
+        if not self.disabled_or_enabled and self.model.connected:
+            self.log.warning(f"CSC in {self.summary_state!r} disconnecting...")
+            try:
+                self.model.disconnect()
+            except Exception:
+                self.log.exception("Error disconnecting from controller. Ignoring.")
+                self.want_connection = True
+
         await super().handle_summary_state()
 
     async def end_start(self, data: salobj.type_hints.BaseMsgType) -> None:
@@ -307,13 +315,8 @@ class CSC(salobj.ConfigurableCsc):
 
         try:
             await self.model.disconnect()
-        except Exception as e:
-            await self.fault(
-                code=CONNECTION_ERROR,
-                report="Cannot disconnect from controller.",
-                traceback=traceback.format_exc(),
-            )
-            raise e
+        except Exception:
+            self.log.exception("Error disconnecting from controller.")
 
         await super().end_disable(data)
 
@@ -333,18 +336,18 @@ class CSC(salobj.ConfigurableCsc):
                 # fault state if so.
                 if ls_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Linear stage in error: {ls_state}")
-                    self.fault(
+                    await self.fault(
                         code=LS_ERROR, report=f"Linear stage in error: {ls_state}"
                     )
                     break
                 elif fw_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Filter wheel in error: {fw_state}")
-                    self.fault(
+                    await self.fault(
                         code=FW_ERROR, report=f"Filter wheel  in error: {fw_state}"
                     )
                     break
                 elif gw_state[2] != ATSpectrograph.Error.NONE:
-                    self.log.error(f"Grating wheel in error: {gw_state}")
+                    await self.log.error(f"Grating wheel in error: {gw_state}")
                     self.fault(
                         code=GW_ERROR, report=f"Grating wheel in error: {gw_state}"
                     )
