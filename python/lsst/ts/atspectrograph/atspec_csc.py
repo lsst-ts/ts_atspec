@@ -336,18 +336,18 @@ class CSC(salobj.ConfigurableCsc):
                 # fault state if so.
                 if ls_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Linear stage in error: {ls_state}")
-                    self.fault(
+                    await self.fault(
                         code=LS_ERROR, report=f"Linear stage in error: {ls_state}"
                     )
                     break
                 elif fw_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Filter wheel in error: {fw_state}")
-                    self.fault(
+                    await self.fault(
                         code=FW_ERROR, report=f"Filter wheel  in error: {fw_state}"
                     )
                     break
                 elif gw_state[2] != ATSpectrograph.Error.NONE:
-                    self.log.error(f"Grating wheel in error: {gw_state}")
+                    await self.log.error(f"Grating wheel in error: {gw_state}")
                     self.fault(
                         code=GW_ERROR, report=f"Grating wheel in error: {gw_state}"
                     )
