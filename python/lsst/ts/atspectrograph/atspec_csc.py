@@ -136,6 +136,14 @@ class CSC(salobj.ConfigurableCsc):
         if self.mock_ctrl is not None and not self.mock_ctrl.initialized:
             await self.mock_ctrl.start()
 
+        if not self.disabled_or_enabled and self.model.connected:
+            self.log.warning(f"CSC in {self.summary_state!r} disconnecting...")
+            try:
+                self.model.disconnect()
+            except Exception:
+                self.log.exception("Error disconnecting from controller. Ignoring.")
+                self.want_connection = True
+
         await super().handle_summary_state()
 
     async def end_start(self, data: salobj.type_hints.BaseMsgType) -> None:
