@@ -4,6 +4,15 @@
 Version History
 ===============
 
+v0.8.5
+------
+
+* In CSC:
+  * Improve ``handle_summary_state`` so it will disconnect from controller if CSC is not in disabled or enabled.
+  * Improve ``end_disable`` so that it will log the exception and keep going if it fails to disconnect from the controller, instead of going to FAULT and rejecting the command.
+  * In ``health_loop``, fix going to FAULT if one of the components is in FAULT.
+* Update conda recipe to properly handle python versions.
+
 v0.8.4
 ------
 

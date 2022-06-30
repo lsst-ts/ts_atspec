@@ -7,14 +7,10 @@ source:
   path: ../
 
 build:
-  script: python -m pip install --no-deps --ignore-installed .
+  script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
   noarch: generic
   entry_points:
     - run_atspectrograph_csc = lsst.ts.atspectrograph.atspec_csc:run_atspectrograph_csc
-
-  script_env:
-    - OSPL_HOME
-    - TS_CONFIG_LATISS_DIR
 
 test:
   requires:
@@ -29,17 +25,21 @@ test:
     - setup.cfg
     - pyproject.toml
   commands:
-    - py.test
+    - pytest
 
 requirements:
   host:
-    - python
+    - python {{ python }}
     - pip
     - setuptools_scm
     - setuptools
-    - pytest-runner
+  build:
+    - python {{ python }}
+    - setuptools_scm
+    - setuptools
+    - ts-conda-build =0.3
   run:
-    - python
+    - python {{ python }}
     - setuptools
     - setuptools_scm
     - ts-salobj
