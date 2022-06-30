@@ -315,13 +315,8 @@ class CSC(salobj.ConfigurableCsc):
 
         try:
             await self.model.disconnect()
-        except Exception as e:
-            await self.fault(
-                code=CONNECTION_ERROR,
-                report="Cannot disconnect from controller.",
-                traceback=traceback.format_exc(),
-            )
-            raise e
+        except Exception:
+            self.log.exception("Error disconnecting from controller.")
 
         await super().end_disable(data)
 
