@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.8.6
+------
+* Add otherInfo to configurationApplied event.
+* Remove -u root and change ownership workaround from Jenkinsfile.
+
 v0.8.5
 ------
 

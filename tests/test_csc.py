@@ -94,6 +94,8 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             set_applied = await self.remote.evt_settingsAppliedValues.aget(
                 timeout=BASE_TIMEOUT
             )
+            config_applied = await self.remote.evt_configurationApplied.aget()
+            assert config_applied.otherInfo == "settingsAppliedValues"
 
             with self.assertRaises(salobj.AckError):
                 await self.remote.cmd_changeFilter.set_start(

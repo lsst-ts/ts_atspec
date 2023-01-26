@@ -857,6 +857,7 @@ class CSC(salobj.ConfigurableCsc):
             responseTimeout=self.model.read_timeout,
             moveTimeout=self.model.move_timeout,
         )
+        await self.evt_configurationApplied.set_write(otherInfo="settingsAppliedValues")
 
     async def close(self) -> None:
         if self.mock_ctrl is not None:
