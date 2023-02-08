@@ -274,6 +274,7 @@ class CSC(salobj.ConfigurableCsc):
             await self.evt_reportedDisperserPosition.set_write(
                 slot=int(state[1]),
                 name=self.grating_info["grating_name"][int(state[1])],
+                band=self.grating_info["band"][int(state[1])],
                 pointingOffsets=[
                     self.grating_info["offset_pointing_grating"]["x"][int(state[1])],
                     self.grating_info["offset_pointing_grating"]["y"][int(state[1])],

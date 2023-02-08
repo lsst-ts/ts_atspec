@@ -4,6 +4,10 @@
 Version History
 ===============
 
+v0.8.7
+------
+* Report band in initial reportedDisperserPosition.
+
 v0.8.6
 ------
 * Add otherInfo to configurationApplied event.
