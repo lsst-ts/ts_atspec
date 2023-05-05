@@ -1,6 +1,7 @@
-# This file is part of ts_atspectrograph.
 #
-# Developed for the LSST Data Management System.
+# This file is part of ts_atspec.
+#
+# Developed for the Rubin Observatory Telescope and Site System.
 # This product includes software developed by the LSST Project
 # (https://www.lsst.org).
 # See the COPYRIGHT file at the top-level directory of this distribution
@@ -18,6 +19,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 
 try:
     from .version import *
