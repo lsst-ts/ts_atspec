@@ -25,3 +25,6 @@ version.py
 .flake8
 .isort.cfg
 .mypy.ini
+
+# Setuptools
+*.egg-info

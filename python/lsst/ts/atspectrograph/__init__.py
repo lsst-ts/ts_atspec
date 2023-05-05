@@ -24,7 +24,7 @@ try:
 except ImportError:
     __version__ = "?"
 
-from .config_schema import *
 from .atspec_csc import CSC
-from .model import *
+from .config_schema import *
 from .mock_controller import MockSpectrographController
+from .model import *

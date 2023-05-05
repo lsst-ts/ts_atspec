@@ -1,19 +1,17 @@
 import asyncio
-from sre_compile import isstring
-import traceback
-import time
-import typing
 import pathlib
+import time
+import traceback
+import typing
+from sre_compile import isstring
 
-from lsst.ts import utils
-from lsst.ts import salobj
-
+from lsst.ts import salobj, utils
 from lsst.ts.idl.enums import ATSpectrograph
 
-from .mock_controller import MockSpectrographController
-from .model import Model
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
+from .mock_controller import MockSpectrographController
+from .model import Model
 
 __all__ = ["CSC", "run_atspectrograph_csc"]
 
@@ -65,7 +63,6 @@ class CSC(salobj.ConfigurableCsc):
         initial_state: salobj.State = salobj.State.STANDBY,
         simulation_mode: int = 0,
     ) -> None:
-
         # flag to monitor if camera is exposing or not, if True, motion
         # commands will be rejected.
         self.is_exposing = False
@@ -107,7 +104,6 @@ class CSC(salobj.ConfigurableCsc):
         )
 
     async def start(self) -> None:
-
         await super().start()
 
         await self.atcam_remote.start_task
@@ -193,7 +189,6 @@ class CSC(salobj.ConfigurableCsc):
             try:
                 await self.model.connect()
             except Exception as e:
-
                 await self.fault(
                     code=CONNECTION_ERROR,
                     report="Cannot connect to controller.",
@@ -238,7 +233,6 @@ class CSC(salobj.ConfigurableCsc):
             raise e
 
         try:
-
             # Check/Report Filter Wheel position.
             state = await self.model.query_fw_status(self.want_connection)
             self.log.debug(f"query_fw_status: {state}")
@@ -296,7 +290,6 @@ class CSC(salobj.ConfigurableCsc):
         await super().end_enable(data)
 
     async def end_disable(self, data: salobj.type_hints.BaseMsgType) -> None:
-
         # TODO: Russell Owen suggest using putting this in
         # `handle_summary_state` instead and calling it whenever the state
         # leaves "enabled".
@@ -604,7 +597,6 @@ class CSC(salobj.ConfigurableCsc):
                 state[0] == ATSpectrograph.Status.STATIONARY
                 and state[1] - position <= self.model.tolerance
             ):
-
                 await self._report_position_options[report](
                     position=state[1],
                     position_name=str(position_name if isstring(position_name) else ""),
@@ -858,7 +850,8 @@ class CSC(salobj.ConfigurableCsc):
             responseTimeout=self.model.read_timeout,
             moveTimeout=self.model.move_timeout,
         )
-        await self.evt_configurationApplied.set_write(otherInfo="settingsAppliedValues")
+        # Set the field but don't write.
+        self.evt_configurationApplied.set(otherInfo="settingsAppliedValues")
 
     async def close(self) -> None:
         if self.mock_ctrl is not None:

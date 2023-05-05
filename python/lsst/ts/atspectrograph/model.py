@@ -114,7 +114,6 @@ class Model:
     """
 
     def __init__(self, log: logging.Logger) -> None:
-
         self.simulation_mode = 0
 
         self.log = (
@@ -312,7 +311,6 @@ class Model:
     async def query_gw_step_position(
         self, want_connection: bool = False
     ) -> typing.Tuple[enum.Enum, typing.Any]:
-
         """Query grating wheel step position.
 
         Parameters
@@ -530,7 +528,6 @@ class Model:
             else:
                 raise RuntimeError("Not connected and not trying to connect")
         async with self.cmd_lock:
-
             # Make sure controller is ready...
             try:
                 read_bytes = await asyncio.wait_for(
