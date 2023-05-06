@@ -1,16 +1,36 @@
+#
+# This file is part of ts_atspec.
+#
+# Developed for the Rubin Observatory Telescope and Site System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 import asyncio
-import pathlib
-import logging
-import unittest
-import typing
 import enum
+import logging
+import pathlib
+import typing
+import unittest
 
 import numpy as np
-
 from lsst.ts import salobj
-from lsst.ts.idl.enums.ATSpectrograph import Status
-
 from lsst.ts.atspectrograph.atspec_csc import CSC
+from lsst.ts.idl.enums.ATSpectrograph import Status
 
 BASE_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
@@ -86,15 +106,21 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 await self.assert_next_sample(event)
 
     async def test_changeFilter(self) -> None:
-
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
-
             set_applied = await self.remote.evt_settingsAppliedValues.aget(
                 timeout=BASE_TIMEOUT
             )
-            config_applied = await self.remote.evt_configurationApplied.aget()
+            config_applied = await self.remote.evt_configurationApplied.next(
+                flush=False, timeout=BASE_TIMEOUT
+            )
+            # Make sure duplicate event is not published.
+            with self.assertRaises(asyncio.TimeoutError):
+                await self.remote.evt_configurationApplied.next(
+                    flush=True, timeout=BASE_TIMEOUT
+                )
+            # Check that otherInfo is filled correctly.
             assert config_applied.otherInfo == "settingsAppliedValues"
 
             with self.assertRaises(salobj.AckError):
@@ -103,11 +129,9 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 )
 
             for i, filter_name in enumerate(set_applied.filterNames.split(",")):
-
                 filter_id = i
 
                 with self.subTest(filter_name=filter_name):
-
                     self.remote.evt_reportedFilterPosition.flush()
                     self.remote.evt_filterInPosition.flush()
                     self.remote.evt_fwState.callback = self.monitor_state_callback
@@ -180,7 +204,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         )
 
                 with self.subTest(filter_id=filter_id):
-
                     self.remote.evt_reportedFilterPosition.flush()
                     self.remote.evt_filterInPosition.flush()
 
@@ -223,11 +246,9 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_changeDisperser(self) -> None:
-
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
-
             while True:
                 try:
                     summary_state = salobj.State(
@@ -252,7 +273,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 )
 
             for i, disperser_name in enumerate(set_applied.gratingNames.split(",")):
-
                 disperser_id = i
 
                 with self.subTest(disperser_name=disperser_name):
@@ -320,7 +340,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         )
 
                 with self.subTest(disperser_id=disperser_id):
-
                     self.remote.evt_reportedDisperserPosition.flush()
                     self.remote.evt_disperserInPosition.flush()
 
@@ -364,11 +383,9 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_moveLinearStage(self) -> None:
-
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
-
             self.monitor_state_callback(
                 await self.remote.evt_lsState.aget(timeout=BASE_TIMEOUT)
             )
@@ -379,7 +396,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 self.csc.model.min_pos, self.csc.model.max_pos, 5
             ):
                 with self.subTest(ls_pos=ls_pos):
-
                     self.remote.evt_reportedLinearStagePosition.flush()
                     self.remote.evt_linearStageInPosition.flush()
 
@@ -428,11 +444,9 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_homeLinearStage(self) -> None:
-
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
-
             self.remote.evt_linearStageInPosition.flush()
 
             await self.remote.cmd_homeLinearStage.set_start(timeout=LONG_TIMEOUT)
@@ -453,7 +467,6 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     def test_check_fg_config(self) -> None:
-
         config_filter = {
             "filter_name": ["a", "b", "c", "d"],
             "band": ["a", "b", "c", "d"],
