@@ -4,6 +4,14 @@
 Version History
 ===============
 
+v0.8.9
+------
+* Fix conda recipe by removing setup.cfg reference.
+
+v0.8.8
+------
+* Fix duplicate configurationApplied event.
+
 v0.8.7
 ------
 * Report band in initial reportedDisperserPosition.
