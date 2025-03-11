@@ -88,6 +88,7 @@ class CSC(salobj.ConfigurableCsc):
         # flag to monitor if camera is exposing or not, if True, motion
         # commands will be rejected.
         self.is_exposing = False
+        self._time_last_exposure_event: None | float = None
 
         self.want_connection = False
         self._health_loop = utils.make_done_future()
@@ -734,17 +735,31 @@ class CSC(salobj.ConfigurableCsc):
                 f"Camera is exposing, {action} is not allowed."
             )
 
-    def monitor_start_integration_callback(
+    async def monitor_start_integration_callback(
         self, data: salobj.type_hints.BaseMsgType
     ) -> None:
         """Set `is_exposing` flag to True."""
-        self.is_exposing = True
+        if (
+            self._time_last_exposure_event is None
+            or data.private_sndStamp > self._time_last_exposure_event
+        ):
+            self.is_exposing = True
+            self._time_last_exposure_event = data.private_sndStamp
+        else:
+            self.log.info("Ignoring old start integration event.")
 
-    def monitor_start_readout_callback(
+    async def monitor_start_readout_callback(
         self, data: salobj.type_hints.BaseMsgType
     ) -> None:
         """Set `is_exposing` flag to False."""
-        self.is_exposing = False
+        if (
+            self._time_last_exposure_event is None
+            or data.private_sndStamp > self._time_last_exposure_event
+        ):
+            self.is_exposing = False
+            self._time_last_exposure_event = data.private_sndStamp
+        else:
+            self.log.info("Ignoring old start readout event.")
 
     @staticmethod
     def get_config_pkg() -> str:
