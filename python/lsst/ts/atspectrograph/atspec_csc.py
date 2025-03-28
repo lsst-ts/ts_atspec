@@ -28,7 +28,7 @@ import typing
 from sre_compile import isstring
 
 from lsst.ts import salobj, utils
-from lsst.ts.idl.enums import ATSpectrograph
+from lsst.ts.xml.enums import ATSpectrograph
 
 from . import __version__
 from .config_schema import CONFIG_SCHEMA

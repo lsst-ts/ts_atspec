@@ -30,7 +30,7 @@ import unittest
 import numpy as np
 from lsst.ts import salobj
 from lsst.ts.atspectrograph.atspec_csc import CSC
-from lsst.ts.idl.enums.ATSpectrograph import Status
+from lsst.ts.xml.enums.ATSpectrograph import Status
 
 BASE_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)

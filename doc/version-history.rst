@@ -4,6 +4,12 @@
 Version History
 ===============
 
+v0.8.11
+-------
+
+* Changed enums from IDL to XML.
+* Changed conda recipe to use ts-xml instead of ts-idl.
+
 v0.8.10
 ------
 * Update the version of ts-conda-build to 0.4 in the conda recipe.
