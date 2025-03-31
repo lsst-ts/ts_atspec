@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.8.11
+-------
+
+* Handle out of order camera events.
+
 v0.8.10
 ------
 * Update the version of ts-conda-build to 0.4 in the conda recipe.
