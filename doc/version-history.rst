@@ -4,6 +4,11 @@
 Version History
 ===============
 
+v0.9.0
+------
+
+* Added filterChangePermitted event.
+
 v0.8.12
 -------
 
