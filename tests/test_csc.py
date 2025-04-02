@@ -242,6 +242,12 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n]), places=3
                         )
+            await self.assert_next_sample(
+                topic=self.remote.evt_filterChangePermitted, value=False
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_filterChangePermitted, value=True
+            )
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 

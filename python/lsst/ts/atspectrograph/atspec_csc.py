@@ -611,6 +611,8 @@ class CSC(salobj.ConfigurableCsc):
 
         # Need to wait for command to complete
         start_time = time.time()
+        if move == "move_fw":
+            await self.evt_filterChangePermitted.set_write(value=False)
         while True:
             state = await getattr(self.model, query)(self.want_connection)
 
@@ -634,6 +636,8 @@ class CSC(salobj.ConfigurableCsc):
                 )
 
             await asyncio.sleep(0.5)
+        if move == "move_fw":
+            await self.evt_filterChangePermitted.set_write(value=True)
 
     async def home_element(
         self, query: str, home: str, report: str, inposition: str, report_state: str
