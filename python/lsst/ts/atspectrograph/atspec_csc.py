@@ -28,7 +28,7 @@ import typing
 from sre_compile import isstring
 
 from lsst.ts import salobj, utils
-from lsst.ts.idl.enums import ATSpectrograph
+from lsst.ts.xml.enums import ATSpectrograph
 
 from . import __version__
 from .config_schema import CONFIG_SCHEMA
@@ -88,6 +88,7 @@ class CSC(salobj.ConfigurableCsc):
         # flag to monitor if camera is exposing or not, if True, motion
         # commands will be rejected.
         self.is_exposing = False
+        self._time_last_exposure_event: None | float = None
 
         self.want_connection = False
         self._health_loop = utils.make_done_future()
@@ -610,6 +611,8 @@ class CSC(salobj.ConfigurableCsc):
 
         # Need to wait for command to complete
         start_time = time.time()
+        if move == "move_fw":
+            await self.evt_filterChangePermitted.set_write(value=False)
         while True:
             state = await getattr(self.model, query)(self.want_connection)
 
@@ -633,6 +636,8 @@ class CSC(salobj.ConfigurableCsc):
                 )
 
             await asyncio.sleep(0.5)
+        if move == "move_fw":
+            await self.evt_filterChangePermitted.set_write(value=True)
 
     async def home_element(
         self, query: str, home: str, report: str, inposition: str, report_state: str
@@ -734,17 +739,31 @@ class CSC(salobj.ConfigurableCsc):
                 f"Camera is exposing, {action} is not allowed."
             )
 
-    def monitor_start_integration_callback(
+    async def monitor_start_integration_callback(
         self, data: salobj.type_hints.BaseMsgType
     ) -> None:
         """Set `is_exposing` flag to True."""
-        self.is_exposing = True
+        if (
+            self._time_last_exposure_event is None
+            or data.private_sndStamp > self._time_last_exposure_event
+        ):
+            self.is_exposing = True
+            self._time_last_exposure_event = data.private_sndStamp
+        else:
+            self.log.info("Ignoring old start integration event.")
 
-    def monitor_start_readout_callback(
+    async def monitor_start_readout_callback(
         self, data: salobj.type_hints.BaseMsgType
     ) -> None:
         """Set `is_exposing` flag to False."""
-        self.is_exposing = False
+        if (
+            self._time_last_exposure_event is None
+            or data.private_sndStamp > self._time_last_exposure_event
+        ):
+            self.is_exposing = False
+            self._time_last_exposure_event = data.private_sndStamp
+        else:
+            self.log.info("Ignoring old start readout event.")
 
     @staticmethod
     def get_config_pkg() -> str:

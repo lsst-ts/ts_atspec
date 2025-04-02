@@ -25,7 +25,7 @@ import enum
 import logging
 import typing
 
-from lsst.ts.idl.enums import ATSpectrograph
+from lsst.ts.xml.enums import ATSpectrograph
 
 __all__ = ["Model"]
 

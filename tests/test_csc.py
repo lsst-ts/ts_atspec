@@ -30,7 +30,7 @@ import unittest
 import numpy as np
 from lsst.ts import salobj
 from lsst.ts.atspectrograph.atspec_csc import CSC
-from lsst.ts.idl.enums.ATSpectrograph import Status
+from lsst.ts.xml.enums.ATSpectrograph import Status
 
 BASE_TIMEOUT = 5  # standard command timeout (sec)
 LONG_TIMEOUT = 20  # timeout for starting SAL components (sec)
@@ -242,6 +242,12 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         self.assertAlmostEqual(
                             offset, float(trimmed_pair.split(",")[n]), places=3
                         )
+            await self.assert_next_sample(
+                topic=self.remote.evt_filterChangePermitted, value=False
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_filterChangePermitted, value=True
+            )
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
