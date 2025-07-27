@@ -894,11 +894,11 @@ class CSC(salobj.ConfigurableCsc):
         # Set the field but don't write.
         self.evt_configurationApplied.set(otherInfo="settingsAppliedValues")
 
-    async def close(self) -> None:
+    async def close_tasks(self) -> None:
         if self.mock_ctrl is not None:
             await self.mock_ctrl.stop(timeout=self.timeout)
 
-        await super().close()
+        await super().close_tasks()
 
     @staticmethod
     def check_fg_config(config: typing.Dict[str, typing.Any]) -> int:

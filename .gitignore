@@ -28,3 +28,5 @@ version.py
 
 # Setuptools
 *.egg-info
+.ruff.toml
+towncrier.toml
