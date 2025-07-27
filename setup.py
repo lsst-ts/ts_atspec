@@ -20,7 +20,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-import setuptools_scm
-from setuptools import setup
+import setuptools
 
-setup(version=setuptools_scm.get_version())
+import setuptools_scm
+
+setuptools.setup(
+    version=setuptools_scm.get_version(
+        write_to="python/lsst/ts/atspectrograph/version.py"
+    )
+)
