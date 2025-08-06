@@ -25,9 +25,9 @@ import pathlib
 import time
 import traceback
 import typing
-from sre_compile import isstring
 
-from lsst.ts import salobj, utils
+from lsst.ts import salobj
+from lsst.ts import utils
 from lsst.ts.xml.enums import ATSpectrograph
 
 from . import __version__
@@ -624,7 +624,7 @@ class CSC(salobj.ConfigurableCsc):
             ):
                 await self._report_position_options[report](
                     position=state[1],
-                    position_name=str(position_name if isstring(position_name) else ""),
+                    position_name=str(position_name if isinstance(position_name, str) else ""),
                 )
 
                 await getattr(self, f"evt_{inposition}").set_write(inPosition=True)
