@@ -392,7 +392,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
         ):
-            self.monitor_state_callback(
+            await self.monitor_state_callback(
                 await self.remote.evt_lsState.aget(timeout=BASE_TIMEOUT)
             )
 
@@ -604,7 +604,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(RuntimeError):
                     CSC.check_fg_config(bad_config[config])
 
-    def monitor_state_callback(self, data: salobj.type_hints.BaseMsgType) -> None:
+    async def monitor_state_callback(self, data: salobj.type_hints.BaseMsgType) -> None:
         self.state_published_last = Status(data.state)
         self.state_published.add(Status(data.state))
         self.log.debug(f"monitor_state_callback: {self.state_published_last!r}")

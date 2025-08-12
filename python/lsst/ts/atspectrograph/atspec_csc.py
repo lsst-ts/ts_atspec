@@ -25,9 +25,9 @@ import pathlib
 import time
 import traceback
 import typing
-from sre_compile import isstring
 
-from lsst.ts import salobj, utils
+from lsst.ts import salobj
+from lsst.ts import utils
 from lsst.ts.xml.enums import ATSpectrograph
 
 from . import __version__
@@ -624,7 +624,7 @@ class CSC(salobj.ConfigurableCsc):
             ):
                 await self._report_position_options[report](
                     position=state[1],
-                    position_name=str(position_name if isstring(position_name) else ""),
+                    position_name=str(position_name if isinstance(position_name, str) else ""),
                 )
 
                 await getattr(self, f"evt_{inposition}").set_write(inPosition=True)
@@ -894,11 +894,11 @@ class CSC(salobj.ConfigurableCsc):
         # Set the field but don't write.
         self.evt_configurationApplied.set(otherInfo="settingsAppliedValues")
 
-    async def close(self) -> None:
+    async def close_tasks(self) -> None:
         if self.mock_ctrl is not None:
             await self.mock_ctrl.stop(timeout=self.timeout)
 
-        await super().close()
+        await super().close_tasks()
 
     @staticmethod
     def check_fg_config(config: typing.Dict[str, typing.Any]) -> int:
