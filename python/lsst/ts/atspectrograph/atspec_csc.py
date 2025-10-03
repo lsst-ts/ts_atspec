@@ -26,8 +26,7 @@ import time
 import traceback
 import typing
 
-from lsst.ts import salobj
-from lsst.ts import utils
+from lsst.ts import salobj, utils
 from lsst.ts.xml.enums import ATSpectrograph
 
 from . import __version__
@@ -42,6 +41,8 @@ LS_ERROR = 2
 FW_ERROR = 3
 GW_ERROR = 4
 CONNECTION_ERROR = 5
+
+MOVE_RJ_TIMEOUT = 1
 
 
 class CSC(salobj.ConfigurableCsc):
@@ -87,7 +88,8 @@ class CSC(salobj.ConfigurableCsc):
     ) -> None:
         # flag to monitor if camera is exposing or not, if True, motion
         # commands will be rejected.
-        self.is_exposing = False
+        self.not_exposing = asyncio.Event()
+        self.not_exposing.set()
         self._time_last_exposure_event: None | float = None
 
         self.want_connection = False
@@ -107,9 +109,7 @@ class CSC(salobj.ConfigurableCsc):
         self.model = Model(self.log)
 
         self.mock_ctrl: typing.Optional[MockSpectrographController] = (
-            MockSpectrographController(port=self.model.port)
-            if simulation_mode == 1
-            else None
+            MockSpectrographController(port=self.model.port) if simulation_mode == 1 else None
         )
 
         self._report_position_options = dict(
@@ -132,12 +132,8 @@ class CSC(salobj.ConfigurableCsc):
         await self.atcam_remote.start_task
 
         # Add a callback function to monitor exposures
-        self.atcam_remote.evt_startIntegration.callback = (
-            self.monitor_start_integration_callback
-        )
-        self.atcam_remote.evt_startReadout.callback = (
-            self.monitor_start_readout_callback
-        )
+        self.atcam_remote.evt_startIntegration.callback = self.monitor_start_integration_callback
+        self.atcam_remote.evt_startReadout.callback = self.monitor_start_readout_callback
 
     async def handle_summary_state(self) -> None:
         """Called after every state transition.
@@ -190,9 +186,7 @@ class CSC(salobj.ConfigurableCsc):
             Command ID and data
         """
 
-        await self.cmd_enable.ack_in_progress(
-            data, timeout=self.model.connection_timeout + self.timeout
-        )
+        await self.cmd_enable.ack_in_progress(data, timeout=self.model.connection_timeout + self.timeout)
 
         await super().begin_enable(data)
 
@@ -221,9 +215,7 @@ class CSC(salobj.ConfigurableCsc):
                 try:
                     await self.model.disconnect()
                 except Exception:
-                    self.log.exception(
-                        "Ignoring exception while trying to disconnect from controller."
-                    )
+                    self.log.exception("Ignoring exception while trying to disconnect from controller.")
 
                 raise e
 
@@ -265,9 +257,7 @@ class CSC(salobj.ConfigurableCsc):
                 slot=int(state[1]),
                 name=self.filter_info["filter_name"][int(state[1])],
                 band=self.filter_info["band"][int(state[1])],
-                centralWavelength=self.filter_info["central_wavelength_filter"][
-                    int(state[1])
-                ],
+                centralWavelength=self.filter_info["central_wavelength_filter"][int(state[1])],
                 focusOffset=self.filter_info["offset_focus_filter"][int(state[1])],
                 pointingOffsets=[
                     self.filter_info["offset_pointing_filter"]["x"][int(state[1])],
@@ -302,8 +292,7 @@ class CSC(salobj.ConfigurableCsc):
         except Exception as e:
             await self.fault(
                 code=CONNECTION_ERROR,
-                report="Cannot get information from model for "
-                "grating/disperser wheel.",
+                report="Cannot get information from model for grating/disperser wheel.",
                 traceback=traceback.format_exc(),
             )
             raise e
@@ -319,9 +308,7 @@ class CSC(salobj.ConfigurableCsc):
         try:
             await asyncio.wait_for(self._health_loop, timeout=self.timeout)
         except asyncio.TimeoutError:
-            self.log.exception(
-                "Wait for health loop to complete timed out. Cancelling."
-            )
+            self.log.exception("Wait for health loop to complete timed out. Cancelling.")
 
             self._health_loop.cancel()
 
@@ -353,21 +340,15 @@ class CSC(salobj.ConfigurableCsc):
                 # fault state if so.
                 if ls_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Linear stage in error: {ls_state}")
-                    await self.fault(
-                        code=LS_ERROR, report=f"Linear stage in error: {ls_state}"
-                    )
+                    await self.fault(code=LS_ERROR, report=f"Linear stage in error: {ls_state}")
                     break
                 elif fw_state[2] != ATSpectrograph.Error.NONE:
                     self.log.error(f"Filter wheel in error: {fw_state}")
-                    await self.fault(
-                        code=FW_ERROR, report=f"Filter wheel  in error: {fw_state}"
-                    )
+                    await self.fault(code=FW_ERROR, report=f"Filter wheel  in error: {fw_state}")
                     break
                 elif gw_state[2] != ATSpectrograph.Error.NONE:
-                    await self.log.error(f"Grating wheel in error: {gw_state}")
-                    self.fault(
-                        code=GW_ERROR, report=f"Grating wheel in error: {gw_state}"
-                    )
+                    self.log.error(f"Grating wheel in error: {gw_state}")
+                    self.fault(code=GW_ERROR, report=f"Grating wheel in error: {gw_state}")
                     break
 
                 await asyncio.sleep(salobj.base_csc.HEARTBEAT_INTERVAL)
@@ -388,15 +369,12 @@ class CSC(salobj.ConfigurableCsc):
 
         """
         self.assert_enabled("changeDisperser")
-        self.assert_move_allowed("changeDisperser")
 
         gratings_name = self.grating_info["grating_name"]
 
         if len(data.name) > 0:
             if data.name not in self.grating_info["grating_name"]:
-                raise RuntimeError(
-                    f"Invalid disperser name={data.name}, must be one of {gratings_name}."
-                )
+                raise RuntimeError(f"Invalid disperser name={data.name}, must be one of {gratings_name}.")
             disperser_name = data.name
             disperser_id = self.grating_info["grating_name"].index(disperser_name)
         elif 0 <= data.disperser < self.n_grating:
@@ -405,7 +383,7 @@ class CSC(salobj.ConfigurableCsc):
         else:
             raise RuntimeError(
                 f"Invalid input. disperser={data.disperser}, must be between "
-                f"0-{self.n_grating-1}. name={data.name}, must be one of {gratings_name}."
+                f"0-{self.n_grating - 1}. name={data.name}, must be one of {gratings_name}."
             )
 
         await self.move_element(
@@ -428,15 +406,12 @@ class CSC(salobj.ConfigurableCsc):
 
         """
         self.assert_enabled("changeFilter")
-        self.assert_move_allowed("changeFilter")
 
         filters_name = self.filter_info["filter_name"]
 
         if len(data.name) > 0:
             if data.name not in self.filter_info["filter_name"]:
-                raise RuntimeError(
-                    f"Invalid filter name={data.name}, must be one of {filters_name}."
-                )
+                raise RuntimeError(f"Invalid filter name={data.name}, must be one of {filters_name}.")
             filter_name = data.name
             filter_id = self.filter_info["filter_name"].index(filter_name)
         elif 0 <= data.filter < self.n_filter:
@@ -445,7 +420,7 @@ class CSC(salobj.ConfigurableCsc):
         else:
             raise RuntimeError(
                 f"Invalid input. filter={data.filter}, must be between"
-                f"0-{self.n_filter-1}. name={data.name}, must be one of {filters_name}."
+                f"0-{self.n_filter - 1}. name={data.name}, must be one of {filters_name}."
             )
 
         await self.move_element(
@@ -468,7 +443,6 @@ class CSC(salobj.ConfigurableCsc):
 
         """
         self.assert_enabled("homeLinearStage")
-        self.assert_move_allowed("homeLinearStage")
 
         await self.home_element(
             query="query_gs_status",
@@ -488,7 +462,6 @@ class CSC(salobj.ConfigurableCsc):
 
         """
         self.assert_enabled("moveLinearStage")
-        self.assert_move_allowed("moveLinearStage")
 
         await self.move_element(
             query="query_gs_status",
@@ -585,6 +558,14 @@ class CSC(salobj.ConfigurableCsc):
                 f"reportedDisperserPosition, but got {report}"
             )
 
+        try:
+            async with asyncio.timeout(MOVE_RJ_TIMEOUT):
+                await self.not_exposing.wait()
+        except TimeoutError:
+            raise salobj.ExpectedError(
+                f"Have not seen the readout event within {MOVE_RJ_TIMEOUT} second, rejecting move command."
+            )
+
         state = await getattr(self.model, query)(self.want_connection)
         await getattr(self, f"evt_{report_state}").set_write(state=state[0])
 
@@ -618,10 +599,7 @@ class CSC(salobj.ConfigurableCsc):
 
             await getattr(self, f"evt_{report_state}").set_write(state=state[0])
 
-            if (
-                state[0] == ATSpectrograph.Status.STATIONARY
-                and state[1] - position <= self.model.tolerance
-            ):
+            if state[0] == ATSpectrograph.Status.STATIONARY and state[1] - position <= self.model.tolerance:
                 await self._report_position_options[report](
                     position=state[1],
                     position_name=str(position_name if isinstance(position_name, str) else ""),
@@ -630,10 +608,7 @@ class CSC(salobj.ConfigurableCsc):
                 await getattr(self, f"evt_{inposition}").set_write(inPosition=True)
                 break
             elif time.time() - start_time > self.model.move_timeout:
-                raise TimeoutError(
-                    "Change position timed out trying to move to "
-                    f"position {position}."
-                )
+                raise TimeoutError(f"Change position timed out trying to move to position {position}.")
 
             await asyncio.sleep(0.5)
         if move == "move_fw":
@@ -701,14 +676,10 @@ class CSC(salobj.ConfigurableCsc):
             await getattr(self.model, home)()
             p_state = await getattr(self.model, query)(self.want_connection)
         except Exception as e:
-            await getattr(self, f"evt_{report_state}").set_write(
-                state=not_in_position, force_output=True
-            )
+            await getattr(self, f"evt_{report_state}").set_write(state=not_in_position, force_output=True)
             raise e
 
-        await getattr(self, f"evt_{inposition}").set_write(
-            inPosition=False, force_output=True
-        )
+        await getattr(self, f"evt_{inposition}").set_write(inPosition=False, force_output=True)
 
         # Need to wait for command to complete
         start_time = time.time()
@@ -720,12 +691,8 @@ class CSC(salobj.ConfigurableCsc):
                 p_state = state
 
             if state[0] == ATSpectrograph.Status.STATIONARY:
-                await getattr(self, f"evt_{report}").set_write(
-                    position=state[1], force_output=True
-                )
-                await getattr(self, f"evt_{inposition}").set_write(
-                    inPosition=True, force_output=True
-                )
+                await getattr(self, f"evt_{report}").set_write(position=state[1], force_output=True)
+                await getattr(self, f"evt_{inposition}").set_write(inPosition=True, force_output=True)
                 break
             elif time.time() - start_time > self.model.move_timeout:
                 raise TimeoutError("Homing element failed...")
@@ -734,33 +701,23 @@ class CSC(salobj.ConfigurableCsc):
 
     def assert_move_allowed(self, action: str) -> None:
         """Assert that moving the spectrograph elements is allowed."""
-        if self.is_exposing:
-            raise salobj.base.ExpectedError(
-                f"Camera is exposing, {action} is not allowed."
-            )
+        if not self.not_exposing.is_set():
+            raise salobj.ExpectedError(f"Camera is exposing, {action} is not allowed.")
 
-    async def monitor_start_integration_callback(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
+    async def monitor_start_integration_callback(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Set `is_exposing` flag to True."""
-        if (
-            self._time_last_exposure_event is None
-            or data.private_sndStamp > self._time_last_exposure_event
-        ):
-            self.is_exposing = True
+        if self._time_last_exposure_event is None or data.private_sndStamp > self._time_last_exposure_event:
+            self.not_exposing.clear()
+            self.log.info("Cleared not exposing event.")
             self._time_last_exposure_event = data.private_sndStamp
         else:
             self.log.info("Ignoring old start integration event.")
 
-    async def monitor_start_readout_callback(
-        self, data: salobj.type_hints.BaseMsgType
-    ) -> None:
+    async def monitor_start_readout_callback(self, data: salobj.type_hints.BaseMsgType) -> None:
         """Set `is_exposing` flag to False."""
-        if (
-            self._time_last_exposure_event is None
-            or data.private_sndStamp > self._time_last_exposure_event
-        ):
-            self.is_exposing = False
+        if self._time_last_exposure_event is None or data.private_sndStamp > self._time_last_exposure_event:
+            self.not_exposing.set()
+            self.log.info("Set not exposing event.")
             self._time_last_exposure_event = data.private_sndStamp
         else:
             self.log.info("Ignoring old start readout event.")
@@ -829,12 +786,8 @@ class CSC(salobj.ConfigurableCsc):
 
         for i in range(self.n_filter):
             filters_str["filter_name"] += self.filter_info["filter_name"][i]
-            filters_str["central_wavelength_filter"] += str(
-                self.filter_info["central_wavelength_filter"][i]
-            )
-            filters_str["offset_focus_filter"] += str(
-                self.filter_info["offset_focus_filter"][i]
-            )
+            filters_str["central_wavelength_filter"] += str(self.filter_info["central_wavelength_filter"][i])
+            filters_str["offset_focus_filter"] += str(self.filter_info["offset_focus_filter"][i])
             filters_str["offset_pointing_filter"] += (
                 "["
                 + str((self.filter_info["offset_pointing_filter"])["x"][i])
@@ -855,9 +808,7 @@ class CSC(salobj.ConfigurableCsc):
         }
         for i in range(self.n_grating):
             gratings_str["grating_name"] += self.grating_info["grating_name"][i]
-            gratings_str["offset_focus_grating"] += str(
-                self.grating_info["offset_focus_grating"][i]
-            )
+            gratings_str["offset_focus_grating"] += str(self.grating_info["offset_focus_grating"][i])
             gratings_str["offset_pointing_grating"] += (
                 "["
                 + str((self.grating_info["offset_pointing_grating"])["x"][i])
@@ -920,9 +871,7 @@ class CSC(salobj.ConfigurableCsc):
             If arrays have different sizes.
         """
         offset_pointing_name = (
-            "offset_pointing_filter"
-            if "offset_pointing_filter" in config
-            else "offset_pointing_grating"
+            "offset_pointing_filter" if "offset_pointing_filter" in config else "offset_pointing_grating"
         )
 
         n_info = [len(config[info]) for info in config if info != offset_pointing_name]
@@ -937,15 +886,10 @@ class CSC(salobj.ConfigurableCsc):
                     if info_entry != offset_pointing_name
                 ]
             )
-            size_report[f"{offset_pointing_name}[x]"] = len(
-                config[offset_pointing_name]["x"]
-            )
-            size_report[f"{offset_pointing_name}[y]"] = len(
-                config[offset_pointing_name]["y"]
-            )
+            size_report[f"{offset_pointing_name}[x]"] = len(config[offset_pointing_name]["x"])
+            size_report[f"{offset_pointing_name}[y]"] = len(config[offset_pointing_name]["y"])
             raise RuntimeError(
-                "Invalid input data. Need same number of values for "
-                f"all attributes. Got {size_report}."
+                f"Invalid input data. Need same number of values for all attributes. Got {size_report}."
             )
 
         return n_info[0]
@@ -964,9 +908,7 @@ class CSC(salobj.ConfigurableCsc):
             slot=int(position),
             name=position_name,
             band=self.filter_info["band"][int(position)],
-            centralWavelength=self.filter_info["central_wavelength_filter"][
-                int(position)
-            ],
+            centralWavelength=self.filter_info["central_wavelength_filter"][int(position)],
             focusOffset=self.filter_info["offset_focus_filter"][int(position)],
             pointingOffsets=[
                 self.filter_info["offset_pointing_filter"]["x"][int(position)],
@@ -975,9 +917,7 @@ class CSC(salobj.ConfigurableCsc):
             force_output=True,
         )
 
-    async def report_disperser_position(
-        self, position: int, position_name: str
-    ) -> None:
+    async def report_disperser_position(self, position: int, position_name: str) -> None:
         """Report the disperser wheel position.
 
         Parameters
@@ -999,9 +939,7 @@ class CSC(salobj.ConfigurableCsc):
             force_output=True,
         )
 
-    async def report_linear_stage_position(
-        self, position: int, position_name: str
-    ) -> None:
+    async def report_linear_stage_position(self, position: int, position_name: str) -> None:
         """Report the linear stage position.
 
         Parameters
@@ -1011,9 +949,7 @@ class CSC(salobj.ConfigurableCsc):
         position_name : `str`
             Name of the position.
         """
-        await self.evt_reportedLinearStagePosition.set_write(
-            position=position, force_output=True
-        )
+        await self.evt_reportedLinearStagePosition.set_write(position=position, force_output=True)
 
 
 def run_atspectrograph_csc() -> None:
