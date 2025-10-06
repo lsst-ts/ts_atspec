@@ -60,9 +60,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_bin_script(self) -> None:
-        await self.check_bin_script(
-            name="ATSpectrograph", index=None, exe_name="run_atspectrograph_csc"
-        )
+        await self.check_bin_script(name="ATSpectrograph", index=None, exe_name="run_atspectrograph_csc")
 
     async def test_standard_state_transitions(self) -> None:
         """Test standard CSC state transitions.
@@ -78,9 +76,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         * standby: DISABLED to STANDBY
         * exitControl: STANDBY, FAULT to OFFLINE (quit)
         """
-        async with self.make_csc(
-            initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=1
-        ):
+        async with self.make_csc(initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=1):
             events_to_check = {
                 self.remote.evt_reportedLinearStagePosition,
                 self.remote.evt_lsState,
@@ -106,20 +102,14 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 await self.assert_next_sample(event)
 
     async def test_changeFilter(self) -> None:
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
-        ):
-            set_applied = await self.remote.evt_settingsAppliedValues.aget(
-                timeout=BASE_TIMEOUT
-            )
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1):
+            set_applied = await self.remote.evt_settingsAppliedValues.aget(timeout=BASE_TIMEOUT)
             config_applied = await self.remote.evt_configurationApplied.next(
                 flush=False, timeout=BASE_TIMEOUT
             )
             # Make sure duplicate event is not published.
             with self.assertRaises(asyncio.TimeoutError):
-                await self.remote.evt_configurationApplied.next(
-                    flush=True, timeout=BASE_TIMEOUT
-                )
+                await self.remote.evt_configurationApplied.next(flush=True, timeout=BASE_TIMEOUT)
             # Check that otherInfo is filled correctly.
             assert config_applied.otherInfo == "settingsAppliedValues"
 
@@ -136,21 +126,15 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.remote.evt_filterInPosition.flush()
                     self.remote.evt_fwState.callback = self.monitor_state_callback
 
-                    fpos_initial = await self.remote.evt_reportedFilterPosition.aget(
-                        timeout=BASE_TIMEOUT
-                    )
+                    fpos_initial = await self.remote.evt_reportedFilterPosition.aget(timeout=BASE_TIMEOUT)
 
                     await self.remote.cmd_changeFilter.set_start(
                         filter=0, name=filter_name, timeout=LONG_TIMEOUT
                     )
                     # Verify the filter wheel goes out of position, then into
                     # position
-                    inpos1 = await self.remote.evt_filterInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
-                    inpos2 = await self.remote.evt_filterInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
+                    inpos1 = await self.remote.evt_filterInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+                    inpos2 = await self.remote.evt_filterInPosition.next(flush=False, timeout=BASE_TIMEOUT)
                     fpos = await self.remote.evt_reportedFilterPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
@@ -161,20 +145,15 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(fpos.slot, filter_id)
 
                     if fpos_initial.slot == filter_id:
-                        self.log.debug(
-                            "Filter wheel already in position. No state change expected."
-                        )
+                        self.log.debug("Filter wheel already in position. No state change expected.")
                         self.assertEqual(self.state_published_last, None)
                     else:
-                        self.log.debug(
-                            "Filter wheel changed position. State change expected."
-                        )
+                        self.log.debug("Filter wheel changed position. State change expected.")
                         self.assertEqual(self.state_published_last, Status.STATIONARY)
 
                     if len(self.state_published) > 0:
                         self.log.info(
-                            "Filter wheel state changed more than once. "
-                            "Checking that moving was published."
+                            "Filter wheel state changed more than once. Checking that moving was published."
                         )
                         self.assertTrue(Status.MOVING in self.state_published)
 
@@ -199,9 +178,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # need to strip off the [ and/or ] which is why there
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
-                        self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n]), places=3
-                        )
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(",")[n]), places=3)
 
                 with self.subTest(filter_id=filter_id):
                     self.remote.evt_reportedFilterPosition.flush()
@@ -210,12 +187,8 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     await self.remote.cmd_changeFilter.set_start(
                         filter=filter_id, name="", timeout=LONG_TIMEOUT
                     )
-                    inpos1 = await self.remote.evt_filterInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
-                    inpos2 = await self.remote.evt_filterInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
+                    inpos1 = await self.remote.evt_filterInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+                    inpos2 = await self.remote.evt_filterInPosition.next(flush=False, timeout=BASE_TIMEOUT)
                     fpos = self.remote.evt_reportedFilterPosition.get()
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
@@ -239,29 +212,19 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # need to strip off the [ and/or ] which is why there
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
-                        self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n]), places=3
-                        )
-            await self.assert_next_sample(
-                topic=self.remote.evt_filterChangePermitted, value=False
-            )
-            await self.assert_next_sample(
-                topic=self.remote.evt_filterChangePermitted, value=True
-            )
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(",")[n]), places=3)
+            await self.assert_next_sample(topic=self.remote.evt_filterChangePermitted, value=False)
+            await self.assert_next_sample(topic=self.remote.evt_filterChangePermitted, value=True)
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_changeDisperser(self) -> None:
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
-        ):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1):
             while True:
                 try:
                     summary_state = salobj.State(
                         (
-                            await self.remote.evt_summaryState.next(
-                                flush=False, timeout=LONG_TIMEOUT
-                            )
+                            await self.remote.evt_summaryState.next(flush=False, timeout=LONG_TIMEOUT)
                         ).summaryState
                     )
                 except asyncio.TimeoutError:
@@ -269,9 +232,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                 if summary_state == salobj.State.ENABLED:
                     break
 
-            set_applied = await self.remote.evt_settingsAppliedValues.aget(
-                timeout=BASE_TIMEOUT
-            )
+            set_applied = await self.remote.evt_settingsAppliedValues.aget(timeout=BASE_TIMEOUT)
 
             with self.assertRaises(salobj.AckError):
                 await self.remote.cmd_changeDisperser.set_start(
@@ -286,19 +247,13 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.remote.evt_disperserInPosition.flush()
                     self.remote.evt_gwState.callback = self.monitor_state_callback
 
-                    dpos_initial = await self.remote.evt_reportedDisperserPosition.aget(
-                        timeout=BASE_TIMEOUT
-                    )
+                    dpos_initial = await self.remote.evt_reportedDisperserPosition.aget(timeout=BASE_TIMEOUT)
 
                     await self.remote.cmd_changeDisperser.set_start(
                         disperser=0, name=disperser_name, timeout=LONG_TIMEOUT
                     )
-                    inpos1 = await self.remote.evt_disperserInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
-                    inpos2 = await self.remote.evt_disperserInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
+                    inpos1 = await self.remote.evt_disperserInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+                    inpos2 = await self.remote.evt_disperserInPosition.next(flush=False, timeout=BASE_TIMEOUT)
                     dpos = await self.remote.evt_reportedDisperserPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
@@ -308,14 +263,10 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(dpos.slot, disperser_id)
 
                     if dpos_initial.slot == disperser_id:
-                        self.log.debug(
-                            "Disperser wheel already in position. No state change expected."
-                        )
+                        self.log.debug("Disperser wheel already in position. No state change expected.")
                         self.assertEqual(self.state_published_last, None)
                     else:
-                        self.log.debug(
-                            "Disperser wheel changed position. State change expected."
-                        )
+                        self.log.debug("Disperser wheel changed position. State change expected.")
                         self.assertEqual(self.state_published_last, Status.STATIONARY)
 
                     if len(self.state_published) > 0:
@@ -341,9 +292,7 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # need to strip off the [ and/or ] which is why there
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
-                        self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n]), places=3
-                        )
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(",")[n]), places=3)
 
                 with self.subTest(disperser_id=disperser_id):
                     self.remote.evt_reportedDisperserPosition.flush()
@@ -352,12 +301,8 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     await self.remote.cmd_changeDisperser.set_start(
                         disperser=disperser_id, name="", timeout=LONG_TIMEOUT
                     )
-                    inpos1 = await self.remote.evt_disperserInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
-                    inpos2 = await self.remote.evt_disperserInPosition.next(
-                        flush=False, timeout=BASE_TIMEOUT
-                    )
+                    inpos1 = await self.remote.evt_disperserInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+                    inpos2 = await self.remote.evt_disperserInPosition.next(flush=False, timeout=BASE_TIMEOUT)
                     dpos = await self.remote.evt_reportedDisperserPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
@@ -382,33 +327,23 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                         # need to strip off the [ and/or ] which is why there
                         # is a [1:] below
                         trimmed_pair = (pair.replace("]", "")).replace("[", "")
-                        self.assertAlmostEqual(
-                            offset, float(trimmed_pair.split(",")[n]), places=3
-                        )
+                        self.assertAlmostEqual(offset, float(trimmed_pair.split(",")[n]), places=3)
 
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_moveLinearStage(self) -> None:
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
-        ):
-            await self.monitor_state_callback(
-                await self.remote.evt_lsState.aget(timeout=BASE_TIMEOUT)
-            )
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1):
+            await self.monitor_state_callback(await self.remote.evt_lsState.aget(timeout=BASE_TIMEOUT))
 
             self.remote.evt_lsState.callback = self.monitor_state_callback
 
-            for ls_pos in np.linspace(
-                self.csc.model.min_pos, self.csc.model.max_pos, 5
-            ):
+            for ls_pos in np.linspace(self.csc.model.min_pos, self.csc.model.max_pos, 5):
                 with self.subTest(ls_pos=ls_pos):
                     self.remote.evt_reportedLinearStagePosition.flush()
                     self.remote.evt_linearStageInPosition.flush()
 
-                    lpos_initial = (
-                        await self.remote.evt_reportedLinearStagePosition.aget(
-                            timeout=BASE_TIMEOUT
-                        )
+                    lpos_initial = await self.remote.evt_reportedLinearStagePosition.aget(
+                        timeout=BASE_TIMEOUT
                     )
 
                     await self.remote.cmd_moveLinearStage.set_start(
@@ -420,28 +355,21 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
                     inpos2 = await self.remote.evt_linearStageInPosition.next(
                         flush=False, timeout=BASE_TIMEOUT
                     )
-                    lpos = await self.remote.evt_reportedLinearStagePosition.aget(
-                        timeout=BASE_TIMEOUT
-                    )
+                    lpos = await self.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
                     self.assertFalse(inpos1.inPosition)
                     self.assertTrue(inpos2.inPosition)
                     self.assertAlmostEqual(lpos.position, ls_pos, places=3)
 
                     if lpos_initial.position != ls_pos:
-                        self.log.debug(
-                            "Linear stage already in position. No state change expected."
-                        )
+                        self.log.debug("Linear stage already in position. No state change expected.")
                         self.assertEqual(self.state_published_last, Status.STATIONARY)
                     else:
-                        self.log.debug(
-                            "Linear stage already in position. Should not have any state change."
-                        )
+                        self.log.debug("Linear stage already in position. Should not have any state change.")
                         self.assertEqual(self.state_published_last, None)
 
                     if len(self.state_published) > 1:
                         self.log.info(
-                            "Linear stage state changed more than once. "
-                            "Checking that moving was published."
+                            "Linear stage state changed more than once. Checking that moving was published."
                         )
                         self.assertTrue(Status.MOVING in self.state_published)
                     else:
@@ -450,22 +378,14 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
             await salobj.set_summary_state(self.remote, salobj.State.STANDBY)
 
     async def test_homeLinearStage(self) -> None:
-        async with self.make_csc(
-            initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1
-        ):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1):
             self.remote.evt_linearStageInPosition.flush()
 
             await self.remote.cmd_homeLinearStage.set_start(timeout=LONG_TIMEOUT)
 
-            inpos1 = await self.remote.evt_linearStageInPosition.next(
-                flush=False, timeout=BASE_TIMEOUT
-            )
-            inpos2 = await self.remote.evt_linearStageInPosition.next(
-                flush=False, timeout=BASE_TIMEOUT
-            )
-            lpos = await self.remote.evt_reportedLinearStagePosition.aget(
-                timeout=BASE_TIMEOUT
-            )
+            inpos1 = await self.remote.evt_linearStageInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+            inpos2 = await self.remote.evt_linearStageInPosition.next(flush=False, timeout=BASE_TIMEOUT)
+            lpos = await self.remote.evt_reportedLinearStagePosition.aget(timeout=BASE_TIMEOUT)
             self.assertFalse(inpos1.inPosition)
             self.assertTrue(inpos2.inPosition)
             self.assertEqual(lpos.position, 0.0)
@@ -608,6 +528,17 @@ class TestATSpecCSC(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
         self.state_published_last = Status(data.state)
         self.state_published.add(Status(data.state))
         self.log.debug(f"monitor_state_callback: {self.state_published_last!r}")
+
+    async def test_exposure_state_monitoring(self):
+        async with (
+            self.make_csc(initial_state=salobj.State.ENABLED, config_dir=None, simulation_mode=1),
+            salobj.Controller("ATCamera") as atcamera_controller,
+        ):
+            await atcamera_controller.evt_startIntegration.set_write(force_output=True)
+            with self.assertRaises(salobj.AckError):
+                await self.remote.cmd_moveLinearStage.set_start(distanceFromHome=37, timeout=LONG_TIMEOUT)
+            await atcamera_controller.evt_startReadout.set_write(force_output=True)
+            await self.remote.cmd_moveLinearStage.set_start(distanceFromHome=37, timeout=LONG_TIMEOUT)
 
 
 if __name__ == "__main__":
