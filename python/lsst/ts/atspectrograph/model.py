@@ -56,9 +56,7 @@ class WheelStatus:
 class FilterWheelStatus(WheelStatus):
     """Store possible filter wheel status and error codes."""
 
-    def parse_status(
-        self, status: str
-    ) -> typing.Tuple[enum.Enum, typing.Any, enum.Enum]:
+    def parse_status(self, status: str) -> typing.Tuple[enum.Enum, typing.Any, enum.Enum]:
         """Parse status string.
 
         Parameters
@@ -139,9 +137,7 @@ class Model:
         self.simulation_mode = 0
 
         self.log = (
-            logging.getLogger(type(self).__name__)
-            if log is None
-            else log.getChild(type(self).__name__)
+            logging.getLogger(type(self).__name__) if log is None else log.getChild(type(self).__name__)
         )
 
         self.host = _LOCAL_HOST
@@ -183,9 +179,7 @@ class Model:
 
         return self.check_return(ret_val)
 
-    async def load_program_configuration_from(
-        self, filename: str, want_connection: bool = False
-    ) -> str:
+    async def load_program_configuration_from(self, filename: str, want_connection: bool = False) -> str:
         """Load configuration from file.
 
         Parameters
@@ -205,9 +199,7 @@ class Model:
         ------
         RuntimeError
         """
-        ret_val = await self.run_command(
-            f"!LDC {filename}\r\n", want_connection=want_connection
-        )
+        ret_val = await self.run_command(f"!LDC {filename}\r\n", want_connection=want_connection)
 
         return self.check_return(ret_val)
 
@@ -435,9 +427,7 @@ class Model:
         """
         if pos < 0 or pos > 3:
             raise RuntimeError(f"Out of range (0-3), got {pos}.")
-        ret_val = await self.run_command(
-            f"!FWM{pos}\r\n", want_connection=want_connection
-        )
+        ret_val = await self.run_command(f"!FWM{pos}\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
 
     async def move_gw(self, pos: int, want_connection: bool = False) -> str:
@@ -457,9 +447,7 @@ class Model:
         """
         if pos < 0 or pos > 3:
             raise RuntimeError(f"Out of range (0-3), got {pos}.")
-        ret_val = await self.run_command(
-            f"!GRM{pos}\r\n", want_connection=want_connection
-        )
+        ret_val = await self.run_command(f"!GRM{pos}\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
 
     async def move_gs(self, pos: float, want_connection: bool = False) -> str:
@@ -479,13 +467,8 @@ class Model:
         """
         # TODO: limit check?
         if not (self.min_pos <= pos <= self.max_pos):
-            raise RuntimeError(
-                f"Requested position {pos} outside limits "
-                f"({self.min_pos} / {self.max_pos})."
-            )
-        ret_val = await self.run_command(
-            f"!LSM{pos}\r\n", want_connection=want_connection
-        )
+            raise RuntimeError(f"Requested position {pos} outside limits ({self.min_pos} / {self.max_pos}).")
+        ret_val = await self.run_command(f"!LSM{pos}\r\n", want_connection=want_connection)
         return self.check_return(ret_val)
 
     async def connect(self) -> None:
@@ -495,18 +478,12 @@ class Model:
             raise RuntimeError("Already connected")
         host = _LOCAL_HOST if self.simulation_mode == 1 else self.host
         self.connect_task = asyncio.open_connection(host=host, port=self.port)
-        self.reader, self.writer = await asyncio.wait_for(
-            self.connect_task, timeout=self.connection_timeout
-        )
+        self.reader, self.writer = await asyncio.wait_for(self.connect_task, timeout=self.connection_timeout)
 
         # Read welcome message
-        await asyncio.wait_for(
-            self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout
-        )
+        await asyncio.wait_for(self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout)
 
-        read_bytes = await asyncio.wait_for(
-            self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout
-        )
+        read_bytes = await asyncio.wait_for(self.reader.readuntil("\r\n".encode()), timeout=self.read_timeout)
 
         if "Spectrograph" not in read_bytes.decode().rstrip():
             raise RuntimeError("No welcome message from controller.")
@@ -552,13 +529,9 @@ class Model:
         async with self.cmd_lock:
             # Make sure controller is ready...
             try:
-                read_bytes = await asyncio.wait_for(
-                    self.reader.read(1), timeout=self.read_timeout
-                )
+                read_bytes = await asyncio.wait_for(self.reader.read(1), timeout=self.read_timeout)
                 if read_bytes != b">":
-                    raise RuntimeError(
-                        f"Controller not ready: Received '{read_bytes!r}'..."
-                    )
+                    raise RuntimeError(f"Controller not ready: Received '{read_bytes!r}'...")
             except Exception as e:
                 await self.disconnect()
                 raise e
@@ -576,9 +549,7 @@ class Model:
                     await self.disconnect()
                     raise e
             else:
-                read_bytes = await asyncio.wait_for(
-                    self.reader.read(1), timeout=self.read_timeout
-                )
+                read_bytes = await asyncio.wait_for(self.reader.read(1), timeout=self.read_timeout)
 
             return read_bytes.decode()
 
