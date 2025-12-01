@@ -9,6 +9,7 @@ source:
 build:
   script: {{ PYTHON }} -m pip install --no-deps --ignore-installed .
   noarch: python
+  string: "py{{ PY_VER | replace('.', '') }}{{ PKG_HASH }}_{{ PKG_BUILDNUM }}"
   entry_points:
     - run_atspectrograph_csc = lsst.ts.atspectrograph.atspec_csc:run_atspectrograph_csc
 

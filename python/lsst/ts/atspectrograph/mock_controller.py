@@ -73,9 +73,7 @@ class MockSpectrographController:
 
         self._cmds: typing.Dict[
             str,
-            typing.Optional[
-                typing.Callable[[str], typing.Coroutine[typing.Any, typing.Any, bytes]]
-            ],
+            typing.Optional[typing.Callable[[str], typing.Coroutine[typing.Any, typing.Any, bytes]]],
         ] = {
             "!XXX": None,
             "!LDC": None,
@@ -109,9 +107,7 @@ class MockSpectrographController:
             self.log.debug("Server initialized.")
             return
 
-        self._server = await asyncio.start_server(
-            self.cmd_loop, host=self.host, port=self.port
-        )
+        self._server = await asyncio.start_server(self.cmd_loop, host=self.host, port=self.port)
 
     async def stop(self, timeout: float = 5.0) -> None:
         """Stop the TCP/IP server.
@@ -129,9 +125,7 @@ class MockSpectrographController:
         server.close()
         await asyncio.wait_for(server.wait_closed(), timeout=timeout)
 
-    async def cmd_loop(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ) -> None:
+    async def cmd_loop(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Command loop.
 
         Parameters
