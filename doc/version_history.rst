@@ -6,6 +6,21 @@ Version History
 
 .. towncrier release notes start
 
+v0.9.2 (2026-01-23)
+===================
+
+Performance Enhancement
+-----------------------
+
+- Improved move rejection logic by waiting for not exposing event to be set. (`OSW-1090 <https://rubinobs.atlassian.net//browse/OSW-1090>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Added python version to build string for conda package. (`OSW-1484 <https://rubinobs.atlassian.net//browse/OSW-1484>`_)
+
+
 v0.9.1 (2025-08-12)
 ===================
 
