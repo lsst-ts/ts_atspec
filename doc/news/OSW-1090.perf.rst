@@ -1,1 +1,0 @@
-Improved move rejection logic by waiting for not exposing event to be set.
